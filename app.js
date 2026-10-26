@@ -9,6 +9,18 @@ const CONFIG = {
   maxSignsPerPerson: 3,
   // Loading screen (MC Rangers x CCIA & SHHOISA). true = show it, false = skip it
   showSplash: false,
+
+  /* ----- Exco-only tiles ----- */
+  // How many exco-only tiles each card gets (0 = none)
+  excoTiles: 4,
+  // Secret code exco type in to sign an exco tile. Change it and tell exco only.
+  excoCode: "7429",
+  // true = exco can sign even if they're from the player's own college
+  excoAnyCollege: true,
+  excoPrompts: [
+    "Why they joined MC Rangers","Their best tip for this trail","High-five at a viewpoint",
+    "Their favourite hiking snack","One fun fact about them","Their best hike ever"
+  ],
   prompts: [
     "Has hiked Lion Rock before","Is a first-year student","Speaks 3 or more languages","Was born outside Hong Kong",
     "Can name 3 HK hiking trails","Has watched a sunrise from a peak","Brought more than 2 snacks","Has a pet at home",
@@ -51,6 +63,7 @@ function initSetup(){
   $("#pCollege").onchange = e => $("#pCollegeOther").classList.toggle("hidden", e.target.value!=="__other");
   const mx = CONFIG.maxSignsPerPerson || 1;
   $("#ruleSigns").textContent = mx===1 ? "Each person can only sign one square, so keep meeting new people." : `Each person can sign up to ${mx} squares on your card, so keep meeting new people.`;
+  if(!(CONFIG.excoTiles>0)) $("#ruleExcoRow").classList.add("hidden");
   $("#ruleWin").textContent = CONFIG.winCondition==="blackout"
     ? "Fill the whole card, then show your reward ticket to an organiser."
     : "Get a full line for a BINGO, then show your reward ticket to an organiser.";
@@ -61,9 +74,13 @@ function initSetup(){
     if(college==="__other") college = $("#pCollegeOther").value.trim();
     if(!name) return $("#setupErr").textContent = "Add your name first.";
     if(!college) return $("#setupErr").textContent = "Pick your college.";
-    const picks = shuffle(CONFIG.prompts).slice(0,24);
-    picks.splice(12,0,null); // free centre
-    S = { name, college, startedAt: Date.now(), cells: picks.map(p=>({ prompt:p, who:null, whoCollege:null, note:"" })), wonAt:null };
+    const nEx = Math.min(CONFIG.excoTiles||0, (CONFIG.excoPrompts||[]).length, 24);
+    const picks = shuffle([
+      ...shuffle(CONFIG.prompts).slice(0,24-nEx).map(p=>({ prompt:p })),
+      ...shuffle(CONFIG.excoPrompts||[]).slice(0,nEx).map(p=>({ prompt:p, exco:true }))
+    ]);
+    picks.splice(12,0,{ prompt:null }); // free centre
+    S = { name, college, startedAt: Date.now(), cells: picks.map(p=>({ ...p, who:null, whoCollege:null, note:"" })), wonAt:null };
     save(); renderGame(); show("game");
   };
 }
@@ -91,9 +108,9 @@ function renderGame(popIdx){
   $("#board").innerHTML = S.cells.map((c,i)=>{
     if(i===12) return `<div class="sq free ${winSet.has(i)?'win':''}" role="gridcell">FREE<br>trail start</div>`;
     const d = !!c.who;
-    return `<button class="sq ${d?'done':''} ${winSet.has(i)?'win':''} ${popIdx===i?'pop':''}" data-i="${i}" role="gridcell"
-      aria-label="${esc(c.prompt)}${d?', signed by '+esc(c.who):''}">
-      <span class="txt">${esc(c.prompt)}</span>
+    return `<button class="sq ${d?'done':''} ${c.exco?'exco':''} ${winSet.has(i)?'win':''} ${popIdx===i?'pop':''}" data-i="${i}" role="gridcell"
+      aria-label="${c.exco?'Exco tile: ':''}${esc(c.prompt)}${d?', signed by '+esc(c.who):''}">
+      ${c.exco&&!d?'<span class="xtag">EXCO</span>':''}<span class="txt">${esc(c.prompt)}</span>
       ${d?`<span class="who">${esc(c.who)}<small>${esc(c.whoCollege)}</small></span>`:""}
     </button>`;
   }).join("");
@@ -114,16 +131,18 @@ function openSheet(i){
   $("#sheetRoot").innerHTML = `
   <div class="scrim" id="scrim">
     <form class="sheet" id="sheetForm" role="dialog" aria-modal="true" aria-labelledby="shTitle" novalidate>
-      <div class="tag">Find someone who…</div>
+      <div class="tag">${c.exco?'Exco-only tile':'Find someone who…'}</div>
       <h2 id="shTitle">${esc(c.prompt)}</h2>
-      <p class="sub">They must be from a college other than ${esc(S.college)}.</p>
-      <label for="wName">Their name</label>
+      <p class="sub">${c.exco ? 'Find an exco member. They type their name and the exco code to sign.' : `They must be from a college other than ${esc(S.college)}.`}</p>
+      <label for="wName">${c.exco?'Exco name':'Their name'}</label>
       <input type="text" id="wName" maxlength="40" placeholder="Ask them to type it" value="${esc(c.who||"")}">
       <label for="wCollege">Their college</label>
       <select id="wCollege"></select>
       <input type="text" id="wCollegeOther" class="hidden" placeholder="Type their college" maxlength="40" style="margin-top:8px">
       <label for="wNote">Note (optional)</label>
       <input type="text" id="wNote" maxlength="80" placeholder="e.g. the word they taught you" value="${esc(c.note||"")}">
+      ${c.exco?`<label for="wCode">Exco code</label>
+      <input type="password" id="wCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Exco types this">`:''}
       <div class="err" id="wErr"></div>
       <div class="row">
         ${c.who?`<button class="btn warn" type="button" id="wClear">Clear</button>`:`<button class="btn line" type="button" id="wCancel">Cancel</button>`}
@@ -147,7 +166,12 @@ function openSheet(i){
     const err = m => $("#wErr").textContent = m;
     if(!who) return err("Add their name.");
     if(!col) return err("Pick their college.");
-    if(norm(col)===norm(S.college)) return err(`They're from ${S.college} too. Find someone from another college.`);
+    if(c.exco){
+      if(($("#wCode").value||"").trim() !== String(CONFIG.excoCode)) return err("That exco code isn't right. Only exco know it.");
+      const sameExco = S.cells.findIndex((x,j)=>j!==i && x.exco && x.who && norm(x.who)===norm(who));
+      if(sameExco>-1) return err(`${who} already signed an exco tile. Find a different exco member.`);
+    }
+    if(!(c.exco && CONFIG.excoAnyCollege) && norm(col)===norm(S.college)) return err(`They're from ${S.college} too. Find someone from another college.`);
     if(norm(who)===norm(S.name)) return err("You can't sign your own square.");
     const max = CONFIG.maxSignsPerPerson || 1;
     const used = S.cells.filter((x,j)=>j!==i && x.who && norm(x.who)===norm(who)).length;
@@ -166,7 +190,7 @@ function showTicket(){
   $("#tCols").textContent = collegesMet(); $("#tCode").textContent = code();
   const t = new Date(S.wonAt||Date.now());
   $("#tClock").textContent = "Completed " + t.toLocaleString([], {dateStyle:"medium", timeStyle:"short"});
-  $("#tPeople").innerHTML = S.cells.filter(c=>c.who).map(c=>`<div><span>${esc(c.who)}</span><span>${esc(c.whoCollege)}</span></div>`).join("");
+  $("#tPeople").innerHTML = S.cells.filter(c=>c.who).map(c=>`<div><span>${esc(c.who)}${c.exco?' <b class="xmini">EXCO</b>':''}</span><span>${esc(c.whoCollege)}</span></div>`).join("");
   show("reward");
 }
 
