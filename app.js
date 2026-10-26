@@ -2,7 +2,7 @@
 const CONFIG = {
   eventName: "Hike Bingo",
   // Change this list to whatever "colleges" means for your group.
-  colleges: ["Chung Chi","Morningside","S.H. Ho",]
+  colleges: ["Chung Chi","Morningside","S.H. Ho"],
   // "line" = one full row/column/diagonal wins; "blackout" = whole card
   winCondition: "blackout",
   prompts: [
