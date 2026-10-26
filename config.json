@@ -5,5 +5,6 @@
   "excoEnabled": true,
   "excoTiles": 4,
   "excoCode": "7429",
-  "excoAnyCollege": true
+  "excoAnyCollege": true,
+  "excoSignsPerExco": 1
 }

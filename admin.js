@@ -18,6 +18,7 @@ const SETTINGS = [
   { key: "excoEnabled", type: "toggle", title: "Exco tiles", desc: "Gold tiles only exco can sign. Off also unlocks them on cards in play.", def: true },
   { key: "excoTiles", type: "stepper", title: "Tiles per card", desc: "Applies to new cards.", min: 1, max: 6, def: 4, when: "excoEnabled" },
   { key: "excoCode", type: "text", title: "Exco code", desc: "Exco type this to sign.", def: "7429", when: "excoEnabled" },
+  { key: "excoSignsPerExco", type: "stepper", title: "Exco tiles per exco", desc: "How many exco tiles one exco member can sign on a card.", min: 1, max: 6, def: 1, when: "excoEnabled" },
   { key: "excoAnyCollege", type: "toggle", title: "Exco from any college", desc: "Exco can sign even if they're from the player's college.", def: true, when: "excoEnabled" },
 ];
 /* ======================================================================================= */

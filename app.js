@@ -20,6 +20,8 @@ const CONFIG = {
   excoCode: "7429",
   // true = exco can sign even if they're from the player's own college
   excoAnyCollege: true,
+  // How many exco tiles the same exco member can sign on one card
+  excoSignsPerExco: 1,
   excoPrompts: [
     "Why they joined MC Rangers","Their best tip for this trail","High-five at a viewpoint",
     "Their favourite hiking snack","One fun fact about them","Their best hike ever"
@@ -40,7 +42,7 @@ const CONFIG = {
 /* ---------- admin settings (config.json) ---------- */
 const RKEY = "trailbingo:remote";
 // Every setting the admin page can change. Add new admin toggles here.
-const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCode","excoAnyCollege"];
+const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCode","excoAnyCollege","excoSignsPerExco"];
 function applyRemote(r){ if(r && typeof r==="object") REMOTE_KEYS.forEach(k => { if(k in r) CONFIG[k] = r[k]; }); }
 try{ applyRemote(JSON.parse(localStorage.getItem(RKEY))); }catch(e){}
 const excoOn = () => CONFIG.excoEnabled !== false && Number(CONFIG.excoTiles) > 0;
@@ -184,8 +186,9 @@ function openSheet(i){
     if(!col) return err("Pick their college.");
     if(xo(c)){
       if(($("#wCode").value||"").trim() !== String(CONFIG.excoCode)) return err("That exco code isn't right. Only exco know it.");
-      const sameExco = S.cells.findIndex((x,j)=>j!==i && xo(x) && x.who && norm(x.who)===norm(who));
-      if(sameExco>-1) return err(`${who} already signed an exco tile. Find a different exco member.`);
+      const exMax = Math.max(1, Number(CONFIG.excoSignsPerExco) || 1);
+      const exUsed = S.cells.filter((x,j)=>j!==i && xo(x) && x.who && norm(x.who)===norm(who)).length;
+      if(exUsed >= exMax) return err(exMax===1 ? `${who} already signed an exco tile. Find a different exco member.` : `${who} has already signed ${exMax} exco tiles, the limit. Find a different exco member.`);
     }
     if(!(xo(c) && CONFIG.excoAnyCollege) && norm(col)===norm(S.college)) return err(`They're from ${S.college} too. Find someone from another college.`);
     if(norm(who)===norm(S.name)) return err("You can't sign your own square.");
