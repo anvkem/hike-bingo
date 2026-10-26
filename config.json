@@ -1,10 +1,10 @@
 {
-  "showSplash": false,
   "winCondition": "blackout",
   "maxSignsPerPerson": 3,
+  "showSplash": true,
   "excoEnabled": true,
   "excoTiles": 4,
   "excoCode": "7429",
-  "excoAnyCollege": true,
-  "excoSignsPerExco": 1
+  "excoSignsPerExco": 1,
+  "excoAnyCollege": true
 }
