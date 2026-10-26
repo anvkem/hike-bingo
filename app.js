@@ -8,9 +8,12 @@ const CONFIG = {
   // How many squares the same person can sign on one card
   maxSignsPerPerson: 3,
   // Loading screen (MC Rangers x CCIA & SHHOISA). true = show it, false = skip it
+  // NOTE: showSplash, excoEnabled, excoTiles and excoCode are controlled from admin.html
+  // (saved in config.json). The values here are only fallbacks.
   showSplash: false,
 
   /* ----- Exco-only tiles ----- */
+  excoEnabled: true,
   // How many exco-only tiles each card gets (0 = none)
   excoTiles: 4,
   // Secret code exco type in to sign an exco tile. Change it and tell exco only.
@@ -33,6 +36,14 @@ const CONFIG = {
   ]
 };
 /* ========================================== */
+
+/* ---------- admin settings (config.json) ---------- */
+const RKEY = "trailbingo:remote";
+const REMOTE_KEYS = ["showSplash","excoEnabled","excoTiles","excoCode"];
+function applyRemote(r){ if(r && typeof r==="object") REMOTE_KEYS.forEach(k => { if(k in r) CONFIG[k] = r[k]; }); }
+try{ applyRemote(JSON.parse(localStorage.getItem(RKEY))); }catch(e){}
+const excoOn = () => CONFIG.excoEnabled !== false && Number(CONFIG.excoTiles) > 0;
+const xo = c => !!(c && c.exco && CONFIG.excoEnabled !== false);
 
 const KEY = "trailbingo:v1";
 const $ = s => document.querySelector(s);
@@ -63,7 +74,7 @@ function initSetup(){
   $("#pCollege").onchange = e => $("#pCollegeOther").classList.toggle("hidden", e.target.value!=="__other");
   const mx = CONFIG.maxSignsPerPerson || 1;
   $("#ruleSigns").textContent = mx===1 ? "Each person can only sign one square, so keep meeting new people." : `Each person can sign up to ${mx} squares on your card, so keep meeting new people.`;
-  if(!(CONFIG.excoTiles>0)) $("#ruleExcoRow").classList.add("hidden");
+  $("#ruleExcoRow").classList.toggle("hidden", !excoOn());
   $("#ruleWin").textContent = CONFIG.winCondition==="blackout"
     ? "Fill the whole card, then show your reward ticket to an organiser."
     : "Get a full line for a BINGO, then show your reward ticket to an organiser.";
@@ -74,7 +85,7 @@ function initSetup(){
     if(college==="__other") college = $("#pCollegeOther").value.trim();
     if(!name) return $("#setupErr").textContent = "Add your name first.";
     if(!college) return $("#setupErr").textContent = "Pick your college.";
-    const nEx = Math.min(CONFIG.excoTiles||0, (CONFIG.excoPrompts||[]).length, 24);
+    const nEx = Math.min(excoOn() ? Number(CONFIG.excoTiles) : 0, (CONFIG.excoPrompts||[]).length, 24);
     const picks = shuffle([
       ...shuffle(CONFIG.prompts).slice(0,24-nEx).map(p=>({ prompt:p })),
       ...shuffle(CONFIG.excoPrompts||[]).slice(0,nEx).map(p=>({ prompt:p, exco:true }))
@@ -108,9 +119,9 @@ function renderGame(popIdx){
   $("#board").innerHTML = S.cells.map((c,i)=>{
     if(i===12) return `<div class="sq free ${winSet.has(i)?'win':''}" role="gridcell">FREE<br>trail start</div>`;
     const d = !!c.who;
-    return `<button class="sq ${d?'done':''} ${c.exco?'exco':''} ${winSet.has(i)?'win':''} ${popIdx===i?'pop':''}" data-i="${i}" role="gridcell"
-      aria-label="${c.exco?'Exco tile: ':''}${esc(c.prompt)}${d?', signed by '+esc(c.who):''}">
-      ${c.exco&&!d?'<span class="xtag">EXCO</span>':''}<span class="txt">${esc(c.prompt)}</span>
+    return `<button class="sq ${d?'done':''} ${xo(c)?'exco':''} ${winSet.has(i)?'win':''} ${popIdx===i?'pop':''}" data-i="${i}" role="gridcell"
+      aria-label="${xo(c)?'Exco tile: ':''}${esc(c.prompt)}${d?', signed by '+esc(c.who):''}">
+      ${xo(c)&&!d?'<span class="xtag">EXCO</span>':''}<span class="txt">${esc(c.prompt)}</span>
       ${d?`<span class="who">${esc(c.who)}<small>${esc(c.whoCollege)}</small></span>`:""}
     </button>`;
   }).join("");
@@ -131,17 +142,17 @@ function openSheet(i){
   $("#sheetRoot").innerHTML = `
   <div class="scrim" id="scrim">
     <form class="sheet" id="sheetForm" role="dialog" aria-modal="true" aria-labelledby="shTitle" novalidate>
-      <div class="tag">${c.exco?'Exco-only tile':'Find someone who…'}</div>
+      <div class="tag">${xo(c)?'Exco-only tile':'Find someone who…'}</div>
       <h2 id="shTitle">${esc(c.prompt)}</h2>
-      <p class="sub">${c.exco ? 'Find an exco member. They type their name and the exco code to sign.' : `They must be from a college other than ${esc(S.college)}.`}</p>
-      <label for="wName">${c.exco?'Exco name':'Their name'}</label>
+      <p class="sub">${xo(c) ? 'Find an exco member. They type their name and the exco code to sign.' : `They must be from a college other than ${esc(S.college)}.`}</p>
+      <label for="wName">${xo(c)?'Exco name':'Their name'}</label>
       <input type="text" id="wName" maxlength="40" placeholder="Ask them to type it" value="${esc(c.who||"")}">
       <label for="wCollege">Their college</label>
       <select id="wCollege"></select>
       <input type="text" id="wCollegeOther" class="hidden" placeholder="Type their college" maxlength="40" style="margin-top:8px">
       <label for="wNote">Note (optional)</label>
       <input type="text" id="wNote" maxlength="80" placeholder="e.g. the word they taught you" value="${esc(c.note||"")}">
-      ${c.exco?`<label for="wCode">Exco code</label>
+      ${xo(c)?`<label for="wCode">Exco code</label>
       <input type="password" id="wCode" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Exco types this">`:''}
       <div class="err" id="wErr"></div>
       <div class="row">
@@ -166,12 +177,12 @@ function openSheet(i){
     const err = m => $("#wErr").textContent = m;
     if(!who) return err("Add their name.");
     if(!col) return err("Pick their college.");
-    if(c.exco){
+    if(xo(c)){
       if(($("#wCode").value||"").trim() !== String(CONFIG.excoCode)) return err("That exco code isn't right. Only exco know it.");
-      const sameExco = S.cells.findIndex((x,j)=>j!==i && x.exco && x.who && norm(x.who)===norm(who));
+      const sameExco = S.cells.findIndex((x,j)=>j!==i && xo(x) && x.who && norm(x.who)===norm(who));
       if(sameExco>-1) return err(`${who} already signed an exco tile. Find a different exco member.`);
     }
-    if(!(c.exco && CONFIG.excoAnyCollege) && norm(col)===norm(S.college)) return err(`They're from ${S.college} too. Find someone from another college.`);
+    if(!(xo(c) && CONFIG.excoAnyCollege) && norm(col)===norm(S.college)) return err(`They're from ${S.college} too. Find someone from another college.`);
     if(norm(who)===norm(S.name)) return err("You can't sign your own square.");
     const max = CONFIG.maxSignsPerPerson || 1;
     const used = S.cells.filter((x,j)=>j!==i && x.who && norm(x.who)===norm(who)).length;
@@ -190,7 +201,7 @@ function showTicket(){
   $("#tCols").textContent = collegesMet(); $("#tCode").textContent = code();
   const t = new Date(S.wonAt||Date.now());
   $("#tClock").textContent = "Completed " + t.toLocaleString([], {dateStyle:"medium", timeStyle:"short"});
-  $("#tPeople").innerHTML = S.cells.filter(c=>c.who).map(c=>`<div><span>${esc(c.who)}${c.exco?' <b class="xmini">EXCO</b>':''}</span><span>${esc(c.whoCollege)}</span></div>`).join("");
+  $("#tPeople").innerHTML = S.cells.filter(c=>c.who).map(c=>`<div><span>${esc(c.who)}${xo(c)?' <b class="xmini">EXCO</b>':''}</span><span>${esc(c.whoCollege)}</span></div>`).join("");
   show("reward");
 }
 
@@ -245,10 +256,23 @@ $("#installLink").onclick = async () => {
 };
 (function splash(){
   const sp = $("#splash"); if(!sp) return;
-  if(CONFIG.showSplash === false){ sp.remove(); return; }
+  // only skip instantly if we already know the admin setting; otherwise wait for config.json below
+  if(CONFIG.showSplash === false && localStorage.getItem(RKEY)){ sp.remove(); return; }
   const hide = () => { sp.classList.add("out"); setTimeout(()=>sp.remove(), 600) };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   setTimeout(hide, reduced ? 1200 : 3200);
   sp.addEventListener("click", hide);
 })();
 if(S){ renderGame(); show("game") } else show("setup");
+
+// fetch the latest admin settings (falls back to the saved copy when offline)
+fetch("config.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(r => {
+  if(!r) return;
+  const before = JSON.stringify(REMOTE_KEYS.map(k => CONFIG[k]));
+  localStorage.setItem(RKEY, JSON.stringify(r)); applyRemote(r);
+  if(CONFIG.showSplash === false){ const sp = $("#splash"); if(sp) sp.remove(); }
+  if(JSON.stringify(REMOTE_KEYS.map(k => CONFIG[k])) === before) return;
+  $("#ruleExcoRow").classList.toggle("hidden", !excoOn());
+  if(CONFIG.showSplash === false){ const sp = $("#splash"); if(sp) sp.remove(); }
+  if(S && !$("#game").classList.contains("hidden")) renderGame();
+}).catch(()=>{});

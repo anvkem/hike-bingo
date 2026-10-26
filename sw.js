@@ -1,7 +1,7 @@
 // Saves the app on the phone so it opens with no signal.
 // Bump VERSION when you want to force everyone onto a fresh copy.
-const VERSION = "trailbingo-v3";
-const CORE = ["./", "index.html", "style.css", "app.js", "manifest.webmanifest",
+const VERSION = "trailbingo-v4";
+const CORE = ["./", "index.html", "style.css", "app.js", "config.json", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png",
   "https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700&f[]=satoshi@400,500,700&display=swap"];
 
@@ -18,6 +18,14 @@ self.addEventListener("fetch", e => {
   const ours = url.origin === location.origin;
   const fonts = /(^|\.)fontshare\.com$/.test(url.hostname);
   if (!ours && !fonts) return;
+  // admin pages and the GitHub API are never cached
+  if (ours && /\/admin(\.html|\.js)?$/.test(url.pathname)) return;
+  // settings: always try the network first so admin changes arrive quickly
+  if (ours && url.pathname.endsWith("/config.json")) {
+    e.respondWith(fetch(req).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put("config.json", copy)); } return res; })
+      .catch(() => caches.match("config.json")));
+    return;
+  }
   e.respondWith(caches.open(VERSION).then(async cache => {
     const key = req.mode === "navigate" ? "index.html" : req;
     const cached = await cache.match(key, { ignoreSearch: req.mode === "navigate" });
