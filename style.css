@@ -133,3 +133,7 @@ input[type=text]:focus,select:focus{border-color:var(--forest-2);box-shadow:0 0 
 .steps b{flex:none;width:24px;height:24px;border-radius:50%;background:var(--paper-2);color:var(--forest);display:grid;place-items:center;font-size:12px}
 .note{margin-top:14px;font-size:13px;color:var(--muted);background:var(--paper-2);border-radius:12px;padding:10px 12px}
 .sq.done .who small{overflow-wrap:normal;hyphens:none;font-size:.7em;max-width:100%}
+
+/* keep content clear of the iPhone status bar / notch in home-screen mode */
+.wrap{padding-top:calc(20px + env(safe-area-inset-top));padding-left:calc(16px + env(safe-area-inset-left));padding-right:calc(16px + env(safe-area-inset-right))}
+.sheet{max-height:calc(92dvh - env(safe-area-inset-top))}
