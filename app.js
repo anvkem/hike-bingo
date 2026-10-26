@@ -7,6 +7,8 @@ const CONFIG = {
   winCondition: "blackout",
   // How many squares the same person can sign on one card
   maxSignsPerPerson: 3,
+  // Loading screen (MC Rangers x CCIA & SHHOISA). true = show it, false = skip it
+  showSplash: true,
   prompts: [
     "Has hiked Lion Rock before","Is a first-year student","Speaks 3 or more languages","Was born outside Hong Kong",
     "Can name 3 HK hiking trails","Has watched a sunrise from a peak","Brought more than 2 snacks","Has a pet at home",
@@ -195,6 +197,7 @@ document.title = CONFIG.eventName + " · Trail Bingo";
 initSetup();
 (function splash(){
   const sp = $("#splash"); if(!sp) return;
+  if(CONFIG.showSplash === false){ sp.remove(); return; }
   const hide = () => { sp.classList.add("out"); setTimeout(()=>sp.remove(), 600) };
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   setTimeout(hide, reduced ? 1200 : 3200);
