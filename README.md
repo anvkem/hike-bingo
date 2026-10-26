@@ -2,7 +2,7 @@
 
 A hike icebreaker bingo game. Each player gets a shuffled 5x5 card and fills squares by meeting people from **other colleges**. Same-college signatures and repeat people are blocked. A full line unlocks a reward ticket with a check code to show organisers.
 
-Live: https://anvkem.github.io/hike-bingo/
+Live: https://mcrangers.github.io/hike-bingo/
 
 ## Files
 - `index.html` – page structure
