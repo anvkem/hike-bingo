@@ -6,10 +6,5 @@
   "excoTiles": 4,
   "excoCode": "7429",
   "excoSignsPerExco": 1,
-  "excoAnyCollege": true,
-  "leaderboardOn": false,
-  "leaderboardUrl": "",
-  "leaderboardMode": "test",
-  "leaderboardSize": 10,
-  "leaderboardColleges": true
+  "excoAnyCollege": true
 }
