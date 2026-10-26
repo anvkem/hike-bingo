@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Exco Dashboard · Trail Bingo</title>
+<meta name="theme-color" content="#1f3a2e">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f3a2e'/><path d='M5 24 13 10l5 8 3-4 6 10z' fill='%23f2a541'/></svg>">
+<link rel="preconnect" href="https://api.fontshare.com">
+<link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="exco.css">
+</head>
+<body>
+<div class="wrap wide">
+  <div class="top">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1f3a2e"/><path d="M4 25 12.5 10l5 8.5 3-4.5L28 25z" fill="#f2a541"/><circle cx="23" cy="9" r="2.6" fill="#f6f1e7"/></svg>
+      Exco Dashboard
+    </div>
+    <div id="topRight"></div>
+  </div>
+
+  <!-- LOGIN -->
+  <section id="login">
+    <form class="card-ui narrow" id="loginForm" novalidate>
+      <label for="pw">Exco password</label>
+      <input type="password" id="pw" autocomplete="current-password" placeholder="Password from the organiser">
+      <div class="err" id="loginErr"></div>
+      <button class="btn dark" type="submit" id="loginBtn">Open dashboard</button>
+      <p class="hint" style="text-align:left">Only exco should have this password. It's checked by the Google Sheet, so player data stays private.</p>
+    </form>
+  </section>
+
+  <!-- DASHBOARD -->
+  <section id="dash" class="hidden">
+    <div class="toolbar">
+      <div class="seg" role="tablist" aria-label="Data mode">
+        <button type="button" data-mode="live" class="on">Live</button>
+        <button type="button" data-mode="test">Test</button>
+      </div>
+      <span class="updated" id="updated">Loading…</span>
+      <button type="button" class="ghost" id="refreshBtn">Refresh</button>
+    </div>
+
+    <div class="kpis">
+      <div class="stat"><div class="n" id="kPlayers">0</div><div class="l">players joined</div></div>
+      <div class="stat"><div class="n" id="kSigs">0</div><div class="l">squares signed</div></div>
+      <div class="stat"><div class="n" id="kAvg">0</div><div class="l">avg squares / player</div></div>
+      <div class="stat"><div class="n" id="kFull">0</div><div class="l">full cards</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="phead"><h3>Leaderboard</h3><input type="search" id="q" placeholder="Search name"></div>
+        <div id="board" class="lb"></div>
+      </div>
+      <div class="side">
+        <div class="panel">
+          <div class="phead"><h3>College mixing</h3></div>
+          <p class="small">Squares signed, by player's college (rows) and signer's college (columns).</p>
+          <div id="matrix"></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><h3>Quiet players</h3></div>
+          <p class="small">No new square in the last 60 minutes. Worth a nudge.</p>
+          <div id="quiet"></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><h3>Recent activity</h3></div>
+          <div id="feed" class="feed"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="sheetRoot"></div>
+<script src="exco.js"></script>
+</body>
+</html>

@@ -14,7 +14,15 @@ const CONFIG = {
     "Has visited 5+ countries","Told you a joke that made you laugh","Is a morning person","Has a part-time job",
     "Recommended you a song","Is left-handed","Can name all 9 CUHK colleges","Wants to start a business",
     "Is wearing something green","Took a selfie with you on the trail","Has seen a wild monkey in HK","Is the youngest in their family"
-  ]
+  ],
+
+  /* ----- Exco tracking (Google Sheet) ----- */
+  // false = nothing is sent anywhere (use while testing). true = send progress to the Sheet.
+  logging: false,
+  // "test" or "live". Every row in the Sheet is tagged with this, so test rows are easy to filter out.
+  mode: "test",
+  // Paste your Google Apps Script web app URL here (see SETUP-TRACKING.md).
+  sheetUrl: ""
 };
 /* ========================================== */
 
@@ -57,8 +65,8 @@ function initSetup(){
     if(!college) return $("#setupErr").textContent = "Pick your college.";
     const picks = shuffle(CONFIG.prompts).slice(0,24);
     picks.splice(12,0,null); // free centre
-    S = { name, college, startedAt: Date.now(), cells: picks.map(p=>({ prompt:p, who:null, whoCollege:null, note:"" })), wonAt:null };
-    save(); renderGame(); show("game");
+    S = { name, college, startedAt: Date.now(), cells: picks.map(p=>({ prompt:p, who:null, whoCollege:null, note:"" })), wonAt:null, id: uid() };
+    save(); track("join"); renderGame(); show("game");
   };
 }
 
@@ -100,7 +108,7 @@ function renderGame(popIdx){
     ? `<div class="banner"><div class="big">${dc===24?'FULL CARD':'BINGO'}</div><p>${dc===24?'Every square done. Legend.':'Keep going for a full card.'}</p><button type="button" id="bTicket">Claim</button></div>` : "";
   const bt=$("#bTicket"); if(bt) bt.onclick=showTicket;
   $("#ticketBtn").classList.toggle("hidden", !won);
-  if(won && !S.wonAt){ S.wonAt = Date.now(); save(); confetti(); }
+  if(won && !S.wonAt){ S.wonAt = Date.now(); save(); track("full_card"); confetti(); }
 }
 
 function openSheet(i){
@@ -132,7 +140,7 @@ function openSheet(i){
   $("#scrim").onclick = e => { if(e.target.id==="scrim") close() };
   document.onkeydown = e => { if(e.key==="Escape") close() };
   if($("#wCancel")) $("#wCancel").onclick = close;
-  if($("#wClear")) $("#wClear").onclick = ()=>{ S.cells[i]={...c,who:null,whoCollege:null,note:""}; if(!hasWon()) S.wonAt=null; save(); close(); renderGame(); };
+  if($("#wClear")) $("#wClear").onclick = ()=>{ const prev=c.who, prevCol=c.whoCollege; S.cells[i]={...c,who:null,whoCollege:null,note:""}; if(!hasWon()) S.wonAt=null; save(); track("clear",{square:c.prompt,who:prev,whoCollege:prevCol}); close(); renderGame(); };
   setTimeout(()=>{const w=$("#wName"); if(w) w.focus()}, 50);
   $("#sheetForm").onsubmit = e => {
     e.preventDefault();
@@ -146,7 +154,7 @@ function openSheet(i){
     const dup = S.cells.findIndex((x,j)=>j!==i && x.who && norm(x.who)===norm(who));
     if(dup>-1) return err(`${who} already signed "${S.cells[dup].prompt}". Find someone new.`);
     S.cells[i] = { ...c, who, whoCollege: col, note: $("#wNote").value.trim() };
-    save(); close(); renderGame(i);
+    save(); close(); renderGame(i); track("sign",{square:c.prompt,who,whoCollege:col,note:S.cells[i].note});
   };
 }
 
@@ -182,6 +190,37 @@ function confetti(){
     P.forEach(p=>{p.y+=p.vy;p.x+=p.vx;p.a+=.1;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.a);ctx.fillStyle=p.c;ctx.fillRect(-p.r/2,-p.r/2,p.r,p.r*1.6);ctx.restore()});
     if(++f<200) requestAnimationFrame(tick); else ctx.clearRect(0,0,cv.width,cv.height) })();
 }
+
+/* ---------- exco tracking ---------- */
+const QKEY = "trailbingo:queue";
+function uid(){ return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2)).slice(0,12) }
+function track(type, extra={}){
+  if(!CONFIG.logging || !CONFIG.sheetUrl || !S) return;
+  if(!S.id){ S.id = uid(); save() }
+  const ev = { eventId: uid(), time: new Date().toISOString(), mode: CONFIG.mode, type,
+    playerId: S.id, player: S.name, college: S.college,
+    squares: doneCount(), lines: completedLines().length, collegesMet: collegesMet(),
+    fullCard: doneCount()===24, code: code(), ...extra };
+  const q = JSON.parse(localStorage.getItem(QKEY)||"[]"); q.push(ev); localStorage.setItem(QKEY, JSON.stringify(q));
+  flush();
+}
+let flushing = false;
+async function flush(){
+  if(flushing || !CONFIG.logging || !CONFIG.sheetUrl) return;
+  flushing = true;
+  try{
+    let q = JSON.parse(localStorage.getItem(QKEY)||"[]");
+    while(q.length){
+      // text/plain avoids a CORS preflight, which Apps Script doesn't support
+      await fetch(CONFIG.sheetUrl, { method:"POST", mode:"no-cors", headers:{"Content-Type":"text/plain"}, body: JSON.stringify(q[0]) });
+      q.shift(); localStorage.setItem(QKEY, JSON.stringify(q));
+    }
+  }catch(e){ /* offline: keep queue, retry later */ }
+  flushing = false;
+}
+addEventListener("online", flush);
+setInterval(flush, 30000);
+flush();
 
 /* ---------- boot ---------- */
 $("#backBtn").onclick = ()=>{ renderGame(); show("game") };
