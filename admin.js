@@ -1,110 +1,192 @@
-/* Admin page: reads and writes config.json in the GitHub repo. */
-const OWNER = "mcrangers", REPO = "hike-bingo", FILE = "config.json";
+/* Admin page: reads and writes config.json in the GitHub repo.
+ * Login: the GitHub key is stored encrypted (AES-GCM, PBKDF2) in admin-key.json.
+ * Only the admin password can unlock it, so the repo never contains the real key. */
+const OWNER = "mcrangers", REPO = "hike-bingo";
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
 const TKEY = "trailbingo:adminKey";
-const MAX_TILES = 6; // number of exco prompts in app.js
+
+/* ===== Admin settings: add new toggles here (and the key to REMOTE_KEYS in app.js) =====
+ * type: toggle | stepper | choice | text.  `when` hides/greys it unless another setting is on. */
+const SETTINGS = [
+  { section: "Game" },
+  { key: "winCondition", type: "choice", title: "Win rule", desc: "What players need for a reward.",
+    options: [["line","One line"],["blackout","Full card"]], def: "blackout" },
+  { key: "maxSignsPerPerson", type: "stepper", title: "Signs per person", desc: "How many squares one person can sign on a card.", min: 1, max: 5, def: 3 },
+  { section: "Opening" },
+  { key: "showSplash", type: "toggle", title: "Loading screen", desc: "MC Rangers × CCIA & SHHOISA intro.", def: false },
+  { section: "Exco tiles" },
+  { key: "excoEnabled", type: "toggle", title: "Exco tiles", desc: "Gold tiles only exco can sign. Off also unlocks them on cards in play.", def: true },
+  { key: "excoTiles", type: "stepper", title: "Tiles per card", desc: "Applies to new cards.", min: 1, max: 6, def: 4, when: "excoEnabled" },
+  { key: "excoCode", type: "text", title: "Exco code", desc: "Exco type this to sign.", def: "7429", when: "excoEnabled" },
+  { key: "excoAnyCollege", type: "toggle", title: "Exco from any college", desc: "Exco can sign even if they're from the player's college.", def: true, when: "excoEnabled" },
+];
+/* ======================================================================================= */
 
 const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let token = localStorage.getItem(TKEY) || "";
-let sha = null, saved = null;
+let sha = null, saved = null, values = {};
 
-const gh = (path, opts = {}) => fetch(API + path, { ...opts, headers: {
-  "Authorization": "Bearer " + token, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) } });
+/* ---------- GitHub ---------- */
+const gh = (path, opts = {}, tok = token) => fetch(API + path, { ...opts, cache: "no-store", headers: {
+  "Authorization": "Bearer " + tok, "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(opts.headers || {}) } });
 const b64e = s => btoa(unescape(encodeURIComponent(s)));
 const b64d = s => decodeURIComponent(escape(atob(s.replace(/\n/g, ""))));
-
-async function login(){
-  const r = await gh("");
-  if(r.status === 401) throw new Error("That key isn't valid or has expired.");
+async function checkKey(tok){
+  const r = await gh("", {}, tok);
+  if(r.status === 401) throw new Error("That GitHub key isn't valid or has expired.");
   if(r.status === 404 || r.status === 403) throw new Error("That key can't access mcrangers/hike-bingo. Check the repository and permissions.");
   if(!r.ok) throw new Error("GitHub error " + r.status + ". Try again.");
   const repo = await r.json();
-  if(repo.permissions && repo.permissions.push === false) throw new Error("That key can read but not change the repo. It needs Contents: Read and write.");
-  await load();
+  if(repo.permissions && repo.permissions.push === false) throw new Error("That key can't change the repo. It needs Contents: Read and write.");
+}
+async function putFile(path, text, message){
+  const cur = await gh("/contents/" + path + "?t=" + Date.now());
+  const body = { message, content: b64e(text) };
+  if(cur.ok) body.sha = (await cur.json()).sha;
+  const r = await gh("/contents/" + path, { method: "PUT", body: JSON.stringify(body) });
+  if(!r.ok) throw new Error("Couldn't save (" + r.status + ").");
+  return (await r.json()).content.sha;
 }
 
-async function load(){
-  const r = await gh("/contents/" + FILE + "?t=" + Date.now(), { cache: "no-store" });
-  if(r.status === 404){ sha = null; saved = { showSplash:false, excoEnabled:true, excoTiles:4, excoCode:"7429" }; }
-  else if(!r.ok) throw new Error("Couldn't read settings (" + r.status + ").");
-  else { const j = await r.json(); sha = j.sha; saved = JSON.parse(b64d(j.content)); }
-  fill(saved);
+/* ---------- password crypto ---------- */
+const enc = new TextEncoder(), dec = new TextDecoder();
+const toB64 = b => btoa(String.fromCharCode(...new Uint8Array(b)));
+const fromB64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function derive(pw, salt, iter){
+  const base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt","decrypt"]);
 }
+async function lock(tok, pw){
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 600000;
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await derive(pw, salt, iter), enc.encode(tok));
+  return { v: 1, iter, salt: toB64(salt), iv: toB64(iv), ct: toB64(ct) };
+}
+async function unlock(box, pw){
+  try{
+    const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromB64(box.iv) }, await derive(pw, fromB64(box.salt), box.iter), fromB64(box.ct));
+    return dec.decode(pt);
+  }catch(e){ throw new Error("Wrong password."); }
+}
+const getBox = () => fetch("admin-key.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null).catch(() => null);
 
-function fill(c){
-  $("#sSplash").checked = !!c.showSplash;
-  $("#sExco").checked = c.excoEnabled !== false;
-  $("#nTiles").value = $("#nTiles").textContent = Math.max(1, Math.min(MAX_TILES, Number(c.excoTiles) || 4));
-  $("#sCode").value = c.excoCode || "";
-  sync();
-}
-const normal = c => ({ showSplash: !!c.showSplash, excoEnabled: c.excoEnabled !== false,
-  excoTiles: Math.max(1, Math.min(MAX_TILES, Number(c.excoTiles) || 4)), excoCode: String(c.excoCode || "").trim() });
-function current(){
-  return { showSplash: $("#sSplash").checked, excoEnabled: $("#sExco").checked,
-    excoTiles: Number($("#nTiles").textContent), excoCode: $("#sCode").value.trim() };
-}
-function sync(){
-  const n = Number($("#nTiles").textContent);
-  $("#minus").disabled = n <= 1; $("#plus").disabled = n >= MAX_TILES;
-  $("#excoOpts").style.opacity = $("#sExco").checked ? 1 : .45;
-  $("#excoOpts").querySelectorAll("button,input").forEach(el => { if(!$("#sExco").checked) el.disabled = true; else if(el.id!=="minus" && el.id!=="plus") el.disabled = false; });
-  if($("#sExco").checked){ $("#minus").disabled = n <= 1; $("#plus").disabled = n >= MAX_TILES; }
-  const dirty = saved && JSON.stringify(current()) !== JSON.stringify(normal(saved));
-  $("#saveBtn").innerHTML = dirty ? '<span class="dirty"></span>Save changes' : "Saved";
-  $("#saveBtn").disabled = !dirty; $("#saveBtn").style.opacity = dirty ? 1 : .6;
-}
-
-async function save(){
-  const c = current();
-  if(c.excoEnabled && !c.excoCode) return status("Add an exco code first.", "bad");
-  $("#saveBtn").textContent = "Saving…"; $("#saveBtn").disabled = true; status("");
-  const body = { message: "Admin: update settings", content: b64e(JSON.stringify(c, null, 2) + "\n") };
-  if(sha) body.sha = sha;
-  let r = await gh("/contents/" + FILE, { method: "PUT", body: JSON.stringify(body) });
-  if(r.status === 409 || r.status === 422){ await load(); return status("Settings changed somewhere else. Reloaded, check and save again.", "bad"); }
-  if(!r.ok){ sync(); return status("Couldn't save (" + r.status + "). Check your key still works.", "bad"); }
-  const j = await r.json(); sha = j.content.sha; saved = c; sync();
-  status("Saved. Phones get it in about a minute, next time they open the app.", "ok");
-  waitLive(c);
-}
-
-async function waitLive(c){
-  const want = JSON.stringify(c);
-  for(let i = 0; i < 30; i++){
-    await new Promise(r => setTimeout(r, 8000));
-    try{
-      const live = await fetch(FILE + "?t=" + Date.now(), { cache: "no-store" }).then(r => r.json());
-      if(JSON.stringify(normal(live)) === want)
-        return status("Live now. Phones pick it up the next time they open the app.", "ok");
-    }catch(e){}
-  }
-}
-const status = (m, cls = "") => { const s = $("#status"); s.textContent = m; s.className = "status " + cls; };
-
-function showSettings(){
-  $("#login").classList.add("hidden"); $("#settings").classList.remove("hidden");
-  $("#who").textContent = "Editing settings for mcrangers.github.io/hike-bingo";
+/* ---------- screens ---------- */
+const only = id => ["login","setupKey","settings"].forEach(s => $("#" + s).classList.toggle("hidden", s !== id));
+async function enter(){
+  await loadConfig(); only("settings");
   $("#topRight").innerHTML = '<button class="ghost" id="outBtn" type="button">Log out</button>';
   $("#outBtn").onclick = () => { localStorage.removeItem(TKEY); location.reload(); };
 }
 
 $("#loginForm").onsubmit = async e => {
   e.preventDefault();
-  token = $("#tok").value.trim(); if(!token) return;
-  $("#loginBtn").textContent = "Checking…"; $("#loginErr").textContent = "";
-  try{ await login(); localStorage.setItem(TKEY, token); showSettings(); }
-  catch(err){ $("#loginErr").textContent = err.message; token = ""; }
+  const pw = $("#pw").value; if(!pw) return;
+  $("#loginBtn").textContent = "Unlocking…"; $("#loginErr").textContent = "";
+  try{
+    const box = await getBox(); if(!box) throw new Error("No admin password set up yet.");
+    const tok = await unlock(box, pw);
+    await checkKey(tok);
+    token = tok; localStorage.setItem(TKEY, tok); await enter();
+  }catch(err){
+    $("#loginErr").textContent = /expired|valid/.test(err.message) ? "The saved GitHub key has expired. Use “Set up or change the admin password” with a new key." : err.message;
+  }
   $("#loginBtn").textContent = "Log in";
 };
-["sSplash","sExco"].forEach(id => $("#" + id).onchange = sync);
-$("#sCode").oninput = sync;
-$("#minus").onclick = () => { $("#nTiles").textContent = Math.max(1, Number($("#nTiles").textContent) - 1); sync(); };
-$("#plus").onclick = () => { $("#nTiles").textContent = Math.min(MAX_TILES, Number($("#nTiles").textContent) + 1); sync(); };
-$("#saveBtn").onclick = save;
+$("#toSetup").onclick = () => { only("setupKey"); $("#toLogin").classList.remove("hidden"); };
+$("#toLogin").onclick = () => only("login");
+$("#setupForm").onsubmit = async e => {
+  e.preventDefault();
+  const tok = $("#tok").value.trim(), p1 = $("#np1").value, p2 = $("#np2").value;
+  const err = m => $("#setupErr").textContent = m;
+  if(!tok) return err("Paste your GitHub key.");
+  if(p1.length < 8) return err("Use at least 8 characters for the password.");
+  if(p1 !== p2) return err("The passwords don't match.");
+  $("#setupBtn").textContent = "Saving…"; err("");
+  try{
+    await checkKey(tok);
+    const box = await lock(tok, p1);
+    token = tok;
+    await putFile("admin-key.json", JSON.stringify(box, null, 2) + "\n", "Admin: set admin password");
+    localStorage.setItem(TKEY, tok); await enter();
+    status("Password set. Next time just type it to log in, on any phone.", "ok");
+  }catch(e2){ err(e2.message); }
+  $("#setupBtn").textContent = "Save and log in";
+};
 
+/* ---------- settings ---------- */
+async function loadConfig(){
+  const r = await gh("/contents/config.json?t=" + Date.now());
+  if(r.status === 401) throw new Error("expired");
+  let cfg = {};
+  if(r.ok){ const j = await r.json(); sha = j.sha; cfg = JSON.parse(b64d(j.content)); } else sha = null;
+  saved = {}; SETTINGS.forEach(s => { if(s.key) saved[s.key] = (s.key in cfg) ? cfg[s.key] : s.def; });
+  saved._extra = Object.fromEntries(Object.entries(cfg).filter(([k]) => !SETTINGS.some(s => s.key === k)));
+  values = JSON.parse(JSON.stringify(saved));
+  render();
+}
+
+function render(){
+  let html = "", open = false;
+  SETTINGS.forEach(s => {
+    if(s.section){ if(open) html += "</div>"; html += `<div class="sec-title">${esc(s.section)}</div><div class="panel">`; open = true; return; }
+    const v = values[s.key], off = s.when && !values[s.when];
+    let ctl = "";
+    if(s.type === "toggle") ctl = `<label class="switch" aria-label="${esc(s.title)}"><input type="checkbox" data-k="${s.key}" ${v ? "checked" : ""}><span></span></label>`;
+    if(s.type === "stepper") ctl = `<div class="stepper"><button type="button" data-k="${s.key}" data-d="-1" aria-label="Less" ${v <= s.min ? "disabled" : ""}>−</button><output>${esc(v)}</output><button type="button" data-k="${s.key}" data-d="1" aria-label="More" ${v >= s.max ? "disabled" : ""}>+</button></div>`;
+    if(s.type === "choice") ctl = `<div class="seg">${s.options.map(([val, lab]) => `<button type="button" data-k="${s.key}" data-v="${esc(val)}" class="${v === val ? "on" : ""}">${esc(lab)}</button>`).join("")}</div>`;
+    if(s.type === "text") ctl = `<input type="text" data-k="${s.key}" value="${esc(v)}" maxlength="12" autocomplete="off" aria-label="${esc(s.title)}">`;
+    html += `<div class="set ${off ? "off" : ""} ${s.type === "choice" ? "wide" : ""}"><div><h3>${esc(s.title)}</h3><p>${esc(s.desc)}</p></div>${ctl}</div>`;
+  });
+  if(open) html += "</div>";
+  $("#panels").innerHTML = html;
+  $("#panels").querySelectorAll("input[type=checkbox]").forEach(el => el.onchange = () => { values[el.dataset.k] = el.checked; render(); });
+  $("#panels").querySelectorAll(".stepper button").forEach(el => el.onclick = () => {
+    const s = SETTINGS.find(x => x.key === el.dataset.k);
+    values[s.key] = Math.max(s.min, Math.min(s.max, Number(values[s.key]) + Number(el.dataset.d))); render();
+  });
+  $("#panels").querySelectorAll(".seg button").forEach(el => el.onclick = () => { values[el.dataset.k] = el.dataset.v; render(); });
+  $("#panels").querySelectorAll("input[type=text]").forEach(el => el.oninput = () => { values[el.dataset.k] = el.value.trim(); dirty(); });
+  dirty();
+}
+function dirty(){
+  const d = JSON.stringify(values) !== JSON.stringify(saved);
+  $("#saveBtn").innerHTML = d ? '<span class="dirty"></span>Save changes' : "Saved";
+  $("#saveBtn").disabled = !d;
+  return d;
+}
+const output = () => { const o = { ...values._extra }; SETTINGS.forEach(s => { if(s.key) o[s.key] = values[s.key]; }); return o; };
+
+$("#saveBtn").onclick = async () => {
+  if(values.excoEnabled && !values.excoCode) return status("Add an exco code first.", "bad");
+  $("#saveBtn").textContent = "Saving…"; $("#saveBtn").disabled = true; status("");
+  const body = { message: "Admin: update settings", content: b64e(JSON.stringify(output(), null, 2) + "\n") };
+  if(sha) body.sha = sha;
+  const r = await gh("/contents/config.json", { method: "PUT", body: JSON.stringify(body) });
+  if(r.status === 409 || r.status === 422){ await loadConfig(); return status("Settings were changed somewhere else. Reloaded them, check and save again.", "bad"); }
+  if(!r.ok){ dirty(); return status("Couldn't save (" + r.status + "). Try logging in again.", "bad"); }
+  sha = (await r.json()).content.sha; saved = JSON.parse(JSON.stringify(values)); dirty();
+  status("Saved. Going live in about a minute…", "ok");
+  waitLive(JSON.stringify(output()));
+};
+async function waitLive(want){
+  for(let i = 0; i < 30; i++){
+    await new Promise(r => setTimeout(r, 8000));
+    try{
+      const live = await fetch("config.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.json());
+      const o = {}; Object.keys(JSON.parse(want)).forEach(k => o[k] = live[k]);
+      if(JSON.stringify(o) === want) return status("Live now. Phones get it next time they open the app.", "ok");
+    }catch(e){}
+  }
+}
+function status(m, cls = ""){ const s = $("#status"); s.textContent = m; s.className = "status " + cls; }
+
+/* ---------- boot ---------- */
 (async () => {
-  if(!token) return;
-  try{ await login(); showSettings(); }
-  catch(err){ localStorage.removeItem(TKEY); token = ""; $("#loginErr").textContent = err.message; }
+  if(token){
+    try{ await checkKey(token); await enter(); return; }
+    catch(e){ localStorage.removeItem(TKEY); token = ""; }
+  }
+  const box = await getBox();
+  if(box){ only("login"); setTimeout(() => $("#pw").focus(), 50); }
+  else only("setupKey");
 })();

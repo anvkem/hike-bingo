@@ -10,34 +10,7 @@
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<style>
-.panel{background:#fffdf8;border:1px solid var(--line);border-radius:18px;padding:6px 18px;margin-bottom:14px}
-.set{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid var(--paper-2)}
-.set:last-child{border-bottom:0}
-.set h3{font-family:var(--display);font-weight:800;font-size:18px;color:var(--forest);line-height:1.15}
-.set p{font-size:13px;color:var(--muted);margin-top:3px}
-.switch{position:relative;flex:none;width:54px;height:32px}
-.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
-.switch span{position:absolute;inset:0;background:#cfc6b2;border-radius:99px;transition:background .2s}
-.switch span::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .2s}
-.switch input:checked + span{background:var(--moss)}
-.switch input:checked + span::after{transform:translateX(22px)}
-.switch input:focus-visible + span{outline:3px solid var(--sun);outline-offset:2px}
-.sub-set{padding:0 0 14px;border-bottom:1px solid var(--paper-2)}
-.sub-set label{margin-top:10px}
-.stepper{display:flex;align-items:center;gap:0;border:1.5px solid var(--line);border-radius:12px;overflow:hidden;width:max-content;background:#fff}
-.stepper button{width:44px;height:44px;font-size:20px;font-weight:700;color:var(--forest)}
-.stepper button:disabled{color:#ccc}
-.stepper output{width:44px;text-align:center;font-family:var(--display);font-weight:800;font-size:20px}
-.status{font-size:14px;margin-top:12px;min-height:1.4em;text-align:center}
-.status.ok{color:var(--moss);font-weight:700}
-.status.bad{color:var(--danger);font-weight:500}
-details{margin-top:16px;font-size:14px}
-details summary{cursor:pointer;font-weight:700;color:var(--forest-2)}
-details ol{margin:10px 0 0 18px;display:grid;gap:6px}
-.who{font-size:13px;color:var(--muted);margin-bottom:12px}
-.dirty{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--sun);margin-right:6px;vertical-align:1px}
-</style>
+<link rel="stylesheet" href="admin.css">
 </head>
 <body>
 <div class="wrap">
@@ -49,46 +22,47 @@ details ol{margin:10px 0 0 18px;display:grid;gap:6px}
     <div id="topRight"></div>
   </div>
 
-  <!-- LOGIN -->
-  <section id="login">
+  <!-- PASSWORD LOGIN -->
+  <section id="login" class="hidden">
     <form class="card-ui" id="loginForm" novalidate>
-      <label for="tok">Admin key</label>
-      <input type="password" id="tok" autocomplete="off" placeholder="github_pat_…" spellcheck="false">
+      <label for="pw">Admin password</label>
+      <input type="password" id="pw" autocomplete="current-password" placeholder="Your admin password">
       <div class="err" id="loginErr"></div>
       <button class="btn dark" type="submit" id="loginBtn">Log in</button>
+      <button class="linkbtn" type="button" id="toSetup">Set up or change the admin password</button>
+    </form>
+  </section>
+
+  <!-- ONE-TIME SETUP -->
+  <section id="setupKey" class="hidden">
+    <form class="card-ui" id="setupForm" novalidate>
+      <div class="tag">One-time setup</div>
+      <h2 class="h2">Create your admin password</h2>
+      <p class="sub">Paste a GitHub key once and pick a password. After that you only need the password, on any phone.</p>
+      <label for="tok">GitHub key</label>
+      <input type="password" id="tok" autocomplete="off" placeholder="github_pat_…" spellcheck="false">
       <details>
-        <summary>How do I get an admin key?</summary>
+        <summary>How do I get a GitHub key?</summary>
         <ol>
-          <li>On GitHub, go to <strong>Settings → Developer settings → Personal access tokens → Fine-grained tokens</strong> → <strong>Generate new token</strong>.</li>
+          <li>GitHub → <strong>Settings → Developer settings → Personal access tokens → Fine-grained tokens</strong> → <strong>Generate new token</strong>.</li>
           <li>Resource owner: <strong>mcrangers</strong>. Repository access: <strong>Only select repositories → hike-bingo</strong>.</li>
-          <li>Permissions → Repository → <strong>Contents: Read and write</strong>.</li>
-          <li>Pick an expiry (e.g. 30 days), generate, and paste the key here. It's saved only on this device.</li>
+          <li>Permissions → Repository → <strong>Contents: Read and write</strong>. Set the expiry past the hike date.</li>
         </ol>
       </details>
+      <label for="np1">New admin password</label>
+      <input type="password" id="np1" autocomplete="new-password" placeholder="At least 8 characters">
+      <label for="np2">Repeat password</label>
+      <input type="password" id="np2" autocomplete="new-password">
+      <div class="err" id="setupErr"></div>
+      <button class="btn dark" type="submit" id="setupBtn">Save and log in</button>
+      <button class="linkbtn hidden" type="button" id="toLogin">Back to login</button>
     </form>
   </section>
 
   <!-- SETTINGS -->
   <section id="settings" class="hidden">
-    <p class="who" id="who"></p>
-    <div class="panel">
-      <div class="set">
-        <div><h3>Loading screen</h3><p>MC Rangers × CCIA &amp; SHHOISA intro when the app opens.</p></div>
-        <label class="switch" aria-label="Loading screen"><input type="checkbox" id="sSplash"><span></span></label>
-      </div>
-      <div class="set">
-        <div><h3>Exco tiles</h3><p>Gold tiles only exco can sign with the exco code.</p></div>
-        <label class="switch" aria-label="Exco tiles"><input type="checkbox" id="sExco"><span></span></label>
-      </div>
-      <div class="sub-set" id="excoOpts">
-        <label>Tiles per card</label>
-        <div class="stepper"><button type="button" id="minus" aria-label="Fewer">−</button><output id="nTiles">4</output><button type="button" id="plus" aria-label="More">+</button></div>
-        <label for="sCode">Exco code</label>
-        <input type="text" id="sCode" maxlength="12" inputmode="numeric" autocomplete="off">
-      </div>
-      <p class="hint" style="text-align:left;padding:12px 0">Exco tile changes apply to new cards. Turning exco tiles off also unlocks the exco tiles on cards already in play.</p>
-    </div>
-    <button class="btn" type="button" id="saveBtn">Save changes</button>
+    <div id="panels"></div>
+    <button class="btn" type="button" id="saveBtn">Saved</button>
     <div class="status" id="status" role="status"></div>
   </section>
 </div>

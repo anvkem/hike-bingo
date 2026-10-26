@@ -8,7 +8,7 @@ const CONFIG = {
   // How many squares the same person can sign on one card
   maxSignsPerPerson: 3,
   // Loading screen (MC Rangers x CCIA & SHHOISA). true = show it, false = skip it
-  // NOTE: showSplash, excoEnabled, excoTiles and excoCode are controlled from admin.html
+  // NOTE: anything listed in REMOTE_KEYS below is controlled from admin.html
   // (saved in config.json). The values here are only fallbacks.
   showSplash: false,
 
@@ -39,7 +39,8 @@ const CONFIG = {
 
 /* ---------- admin settings (config.json) ---------- */
 const RKEY = "trailbingo:remote";
-const REMOTE_KEYS = ["showSplash","excoEnabled","excoTiles","excoCode"];
+// Every setting the admin page can change. Add new admin toggles here.
+const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCode","excoAnyCollege"];
 function applyRemote(r){ if(r && typeof r==="object") REMOTE_KEYS.forEach(k => { if(k in r) CONFIG[k] = r[k]; }); }
 try{ applyRemote(JSON.parse(localStorage.getItem(RKEY))); }catch(e){}
 const excoOn = () => CONFIG.excoEnabled !== false && Number(CONFIG.excoTiles) > 0;
@@ -69,15 +70,19 @@ function show(id){
   window.scrollTo(0,0);
 }
 
-function initSetup(){
-  collegeOptions($("#pCollege"), "Choose your college");
-  $("#pCollege").onchange = e => $("#pCollegeOther").classList.toggle("hidden", e.target.value!=="__other");
-  const mx = CONFIG.maxSignsPerPerson || 1;
+function refreshRules(){
+  const mx = Number(CONFIG.maxSignsPerPerson) || 1;
   $("#ruleSigns").textContent = mx===1 ? "Each person can only sign one square, so keep meeting new people." : `Each person can sign up to ${mx} squares on your card, so keep meeting new people.`;
   $("#ruleExcoRow").classList.toggle("hidden", !excoOn());
   $("#ruleWin").textContent = CONFIG.winCondition==="blackout"
     ? "Fill the whole card, then show your reward ticket to an organiser."
     : "Get a full line for a BINGO, then show your reward ticket to an organiser.";
+}
+
+function initSetup(){
+  collegeOptions($("#pCollege"), "Choose your college");
+  $("#pCollege").onchange = e => $("#pCollegeOther").classList.toggle("hidden", e.target.value!=="__other");
+  refreshRules();
   $("#setupForm").onsubmit = e => {
     e.preventDefault();
     const name = $("#pName").value.trim();
@@ -272,7 +277,6 @@ fetch("config.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.j
   localStorage.setItem(RKEY, JSON.stringify(r)); applyRemote(r);
   if(CONFIG.showSplash === false){ const sp = $("#splash"); if(sp) sp.remove(); }
   if(JSON.stringify(REMOTE_KEYS.map(k => CONFIG[k])) === before) return;
-  $("#ruleExcoRow").classList.toggle("hidden", !excoOn());
-  if(CONFIG.showSplash === false){ const sp = $("#splash"); if(sp) sp.remove(); }
+  refreshRules();
   if(S && !$("#game").classList.contains("hidden")) renderGame();
 }).catch(()=>{});
