@@ -46,8 +46,17 @@ async function putFile(path, text, message){
   const body = { message, content: b64e(text) };
   if(cur.ok) body.sha = (await cur.json()).sha;
   const r = await gh("/contents/" + path, { method: "PUT", body: JSON.stringify(body) });
-  if(!r.ok) throw new Error("Couldn't save (" + r.status + ").");
+  if(!r.ok) throw new Error(await explain(r));
   return (await r.json()).content.sha;
+}
+
+// Turn GitHub errors into something readable
+async function explain(r){
+  let msg = ""; try{ msg = (await r.json()).message || ""; }catch(e){}
+  if(r.status === 403 && /approv|pending/i.test(msg)) return "This key is waiting for approval in the mcrangers organization. Approve it in the organization's settings → Personal access tokens → Pending requests, then try again.";
+  if(r.status === 403) return "GitHub blocked the save: the key can read but not write. Make sure the key's Contents permission is “Read and write” (not Read-only), and that mcrangers has approved it. GitHub said: " + (msg || "forbidden");
+  if(r.status === 401) return "That GitHub key isn't valid or has expired.";
+  return "Couldn't save (" + r.status + "). " + msg;
 }
 
 /* ---------- password crypto ---------- */
@@ -164,7 +173,7 @@ $("#saveBtn").onclick = async () => {
   if(sha) body.sha = sha;
   const r = await gh("/contents/config.json", { method: "PUT", body: JSON.stringify(body) });
   if(r.status === 409 || r.status === 422){ await loadConfig(); return status("Settings were changed somewhere else. Reloaded them, check and save again.", "bad"); }
-  if(!r.ok){ dirty(); return status("Couldn't save (" + r.status + "). Try logging in again.", "bad"); }
+  if(!r.ok){ dirty(); return status(await explain(r), "bad"); }
   sha = (await r.json()).content.sha; saved = JSON.parse(JSON.stringify(values)); dirty();
   status("Saved. Going live in about a minute…", "ok");
   waitLive(JSON.stringify(output()));
