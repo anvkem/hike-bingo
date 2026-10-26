@@ -193,4 +193,11 @@ $("#backBtn").onclick = ()=>{ renderGame(); show("game") };
 $("#ticketBtn").onclick = showTicket;
 document.title = CONFIG.eventName + " · Trail Bingo";
 initSetup();
+(function splash(){
+  const sp = $("#splash"); if(!sp) return;
+  const hide = () => { sp.classList.add("out"); setTimeout(()=>sp.remove(), 600) };
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  setTimeout(hide, reduced ? 1200 : 3200);
+  sp.addEventListener("click", hide);
+})();
 if(S){ renderGame(); show("game") } else show("setup");
