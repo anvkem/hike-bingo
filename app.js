@@ -5,6 +5,8 @@ const CONFIG = {
   colleges: ["Chung Chi","Morningside","S.H. Ho"],
   // "line" = one full row/column/diagonal wins; "blackout" = whole card
   winCondition: "blackout",
+  // How many squares the same person can sign on one card
+  maxSignsPerPerson: 3,
   prompts: [
     "Has hiked Lion Rock before","Is a first-year student","Speaks 3 or more languages","Was born outside Hong Kong",
     "Can name 3 HK hiking trails","Has watched a sunrise from a peak","Brought more than 2 snacks","Has a pet at home",
@@ -45,6 +47,8 @@ function show(id){
 function initSetup(){
   collegeOptions($("#pCollege"), "Choose your college");
   $("#pCollege").onchange = e => $("#pCollegeOther").classList.toggle("hidden", e.target.value!=="__other");
+  const mx = CONFIG.maxSignsPerPerson || 1;
+  $("#ruleSigns").textContent = mx===1 ? "Each person can only sign one square, so keep meeting new people." : `Each person can sign up to ${mx} squares on your card, so keep meeting new people.`;
   $("#ruleWin").textContent = CONFIG.winCondition==="blackout"
     ? "Fill the whole card, then show your reward ticket to an organiser."
     : "Get a full line for a BINGO, then show your reward ticket to an organiser.";
@@ -143,8 +147,9 @@ function openSheet(i){
     if(!col) return err("Pick their college.");
     if(norm(col)===norm(S.college)) return err(`They're from ${S.college} too. Find someone from another college.`);
     if(norm(who)===norm(S.name)) return err("You can't sign your own square.");
-    const dup = S.cells.findIndex((x,j)=>j!==i && x.who && norm(x.who)===norm(who));
-    if(dup>-1) return err(`${who} already signed "${S.cells[dup].prompt}". Find someone new.`);
+    const max = CONFIG.maxSignsPerPerson || 1;
+    const used = S.cells.filter((x,j)=>j!==i && x.who && norm(x.who)===norm(who)).length;
+    if(used >= max) return err(max===1 ? `${who} already signed a square. Find someone new.` : `${who} has already signed ${max} squares, the limit. Find someone new.`);
     S.cells[i] = { ...c, who, whoCollege: col, note: $("#wNote").value.trim() };
     save(); close(); renderGame(i);
   };
