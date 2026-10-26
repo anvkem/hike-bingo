@@ -4,7 +4,7 @@ const CONFIG = {
   // Change this list to whatever "colleges" means for your group.
   colleges: ["Chung Chi","Morningside","S.H. Ho",]
   // "line" = one full row/column/diagonal wins; "blackout" = whole card
-  winCondition: "line",
+  winCondition: "blackout",
   prompts: [
     "Has hiked Lion Rock before","Is a first-year student","Speaks 3 or more languages","Was born outside Hong Kong",
     "Can name 3 HK hiking trails","Has watched a sunrise from a peak","Brought more than 2 snacks","Has a pet at home",
