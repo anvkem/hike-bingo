@@ -22,6 +22,13 @@ const CONFIG = {
   excoAnyCollege: true,
   // How many exco tiles the same exco member can sign on one card
   excoSignsPerExco: 1,
+  /* ----- Leaderboard (Google Sheet, see SETUP-LEADERBOARD.md) ----- */
+  leaderboardOn: false,        // false = nothing is sent anywhere
+  leaderboardUrl: "",          // Apps Script web app URL (ends in /exec)
+  leaderboardMode: "test",     // "test" or "live" – each has its own separate board
+  leaderboardSize: 10,         // how many names players see
+  leaderboardColleges: true,   // show the college totals ("College cup")
+
   excoPrompts: [
     "Why they joined MC Rangers","Their best tip for this trail","High-five at a viewpoint",
     "Their favourite hiking snack","One fun fact about them","Their best hike ever"
@@ -42,7 +49,8 @@ const CONFIG = {
 /* ---------- admin settings (config.json) ---------- */
 const RKEY = "trailbingo:remote";
 // Every setting the admin page can change. Add new admin toggles here.
-const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCode","excoAnyCollege","excoSignsPerExco"];
+const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCode","excoAnyCollege","excoSignsPerExco",
+  "leaderboardOn","leaderboardUrl","leaderboardMode","leaderboardSize","leaderboardColleges"];
 function applyRemote(r){ if(r && typeof r==="object") REMOTE_KEYS.forEach(k => { if(k in r) CONFIG[k] = r[k]; }); }
 try{ applyRemote(JSON.parse(localStorage.getItem(RKEY))); }catch(e){}
 const excoOn = () => CONFIG.excoEnabled !== false && Number(CONFIG.excoTiles) > 0;
@@ -98,8 +106,8 @@ function initSetup(){
       ...shuffle(CONFIG.excoPrompts||[]).slice(0,nEx).map(p=>({ prompt:p, exco:true }))
     ]);
     picks.splice(12,0,{ prompt:null }); // free centre
-    S = { name, college, startedAt: Date.now(), cells: picks.map(p=>({ ...p, who:null, whoCollege:null, note:"" })), wonAt:null };
-    save(); renderGame(); show("game");
+    S = { name, college, startedAt: Date.now(), cells: picks.map(p=>({ ...p, who:null, whoCollege:null, note:"" })), wonAt:null, id: uid() };
+    save(); renderGame(); show("game"); pushScore();
   };
 }
 
@@ -142,6 +150,7 @@ function renderGame(popIdx){
   const bt=$("#bTicket"); if(bt) bt.onclick=showTicket;
   $("#ticketBtn").classList.toggle("hidden", !won);
   if(won && !S.wonAt){ S.wonAt = Date.now(); save(); confetti(); }
+  lbButton();
 }
 
 function openSheet(i){
@@ -175,7 +184,7 @@ function openSheet(i){
   $("#scrim").onclick = e => { if(e.target.id==="scrim") close() };
   document.onkeydown = e => { if(e.key==="Escape") close() };
   if($("#wCancel")) $("#wCancel").onclick = close;
-  if($("#wClear")) $("#wClear").onclick = ()=>{ S.cells[i]={...c,who:null,whoCollege:null,note:""}; if(!hasWon()) S.wonAt=null; save(); close(); renderGame(); };
+  if($("#wClear")) $("#wClear").onclick = ()=>{ S.cells[i]={...c,who:null,whoCollege:null,note:""}; if(!hasWon()) S.wonAt=null; save(); close(); renderGame(); pushScore(); };
   setTimeout(()=>{const w=$("#wName"); if(w) w.focus()}, 50);
   $("#sheetForm").onsubmit = e => {
     e.preventDefault();
@@ -196,7 +205,7 @@ function openSheet(i){
     const used = S.cells.filter((x,j)=>j!==i && x.who && norm(x.who)===norm(who)).length;
     if(used >= max) return err(max===1 ? `${who} already signed a square. Find someone new.` : `${who} has already signed ${max} squares, the limit. Find someone new.`);
     S.cells[i] = { ...c, who, whoCollege: col, note: $("#wNote").value.trim() };
-    save(); close(); renderGame(i);
+    save(); close(); renderGame(i); pushScore();
   };
 }
 
@@ -219,7 +228,7 @@ function confirmReset(){
     <div class="row"><button class="btn line" type="button" id="rNo">Keep my card</button><button class="btn warn" type="button" id="rYes">Reset</button></div></div></div>`;
   const close=()=>$("#sheetRoot").innerHTML="";
   $("#rNo").onclick=close; $("#scrim").onclick=e=>{if(e.target.id==="scrim")close()};
-  $("#rYes").onclick=()=>{ localStorage.removeItem(KEY); S=null; close(); $("#setupForm").reset(); $("#pCollegeOther").classList.add("hidden"); show("setup") };
+  $("#rYes").onclick=()=>{ pushScore(true); localStorage.removeItem(KEY); S=null; close(); $("#setupForm").reset(); $("#pCollegeOther").classList.add("hidden"); show("setup") };
 }
 
 /* ---------- confetti ---------- */
@@ -233,9 +242,83 @@ function confetti(){
     if(++f<200) requestAnimationFrame(tick); else ctx.clearRect(0,0,cv.width,cv.height) })();
 }
 
+/* ---------- leaderboard ---------- */
+// Only the latest score is sent (one row per player in the Sheet), queued while offline.
+const LB_PEND = "trailbingo:lbPending", LB_SENT = "trailbingo:lbSent", LB_CACHE = "trailbingo:lbCache";
+const lbOn = () => CONFIG.leaderboardOn === true && /^https:\/\/script\.google(usercontent)?\.com\//.test(CONFIG.leaderboardUrl || "");
+const lbMode = () => CONFIG.leaderboardMode === "live" ? "live" : "test";
+function uid(){ return (crypto.randomUUID ? crypto.randomUUID().replace(/-/g,"") : Date.now().toString(36)+Math.random().toString(36).slice(2)).slice(0,16) }
+function pushScore(remove){
+  if(!lbOn() || !S) return;
+  if(!S.id){ S.id = uid(); save(); }
+  const snap = remove ? { id:S.id, mode:lbMode(), remove:true } : { id:S.id, mode:lbMode(), name:S.name, college:S.college,
+    squares:doneCount(), lines:completedLines().length, colleges:collegesMet(), full:doneCount()===24, wonAt:S.wonAt, code:code() };
+  const pend = JSON.parse(localStorage.getItem(LB_PEND) || "[]").filter(x => !(x.id===snap.id && x.mode===snap.mode));
+  pend.push(snap); localStorage.setItem(LB_PEND, JSON.stringify(pend));
+  flushScores();
+}
+let flushing = false;
+async function flushScores(){
+  if(flushing || !lbOn()) return; flushing = true;
+  try{
+    let pend = JSON.parse(localStorage.getItem(LB_PEND) || "[]");
+    while(pend.length){
+      const body = JSON.stringify(pend[0]), sentKey = CONFIG.leaderboardUrl + "|" + body;
+      if(localStorage.getItem(LB_SENT) !== sentKey){
+        // text/plain + no-cors: Apps Script doesn't answer CORS preflights
+        await fetch(CONFIG.leaderboardUrl, { method:"POST", mode:"no-cors", headers:{ "Content-Type":"text/plain" }, body });
+        localStorage.setItem(LB_SENT, sentKey);
+      }
+      pend.shift(); localStorage.setItem(LB_PEND, JSON.stringify(pend));
+    }
+  }catch(e){ /* no signal: keep it and retry later */ }
+  flushing = false;
+}
+addEventListener("online", flushScores);
+setInterval(flushScores, 30000);
+
+function lbButton(){
+  const b = $("#lbBtn"); if(!b) return;
+  b.classList.toggle("hidden", !lbOn() || !S);
+  const c = lbCache(); $("#lbMine").textContent = c && c.me ? "You're #" + c.me.rank : "See who's ahead";
+}
+function lbCache(){ try{ const c = JSON.parse(localStorage.getItem(LB_CACHE)); return c && c.mode===lbMode() ? c : null }catch(e){ return null } }
+async function openBoard(){
+  const draw = (d, note) => {
+    const me = d && d.me, size = Math.max(3, Number(CONFIG.leaderboardSize) || 10);
+    const rows = d ? d.top.slice(0, size).map((r,i) => `<li class="${me && me.rank===i+1 ? 'me' : ''}"><b>${i+1}</b><span class="nm">${esc(r.name)}<small>${esc(r.college)}</small></span><span class="sc">${r.full ? '<i>FULL</i>' : r.squares + '<small>/24</small>'}</span></li>`).join("") : "";
+    const mine = me && me.rank > size ? `<li class="me gap"><b>${me.rank}</b><span class="nm">You<small>${esc(me.college)}</small></span><span class="sc">${me.full ? '<i>FULL</i>' : me.squares + '<small>/24</small>'}</span></li>` : "";
+    const cup = d && CONFIG.leaderboardColleges !== false && d.colleges && d.colleges.length ? `<div class="cup">${d.colleges.map(c => `<div><span>${esc(c.college)}</span><b>${c.squares}</b></div>`).join("")}</div><p class="cupnote">College cup: total squares signed</p>` : "";
+    $("#sheetRoot").innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="lbT">
+      <div class="tag">${lbMode()==="test" ? "Leaderboard · test" : "Leaderboard"}</div><h2 id="lbT">Who's ahead</h2>
+      ${cup}
+      ${d ? (d.top.length ? `<ol class="lb">${rows}${mine}</ol>` : `<p class="sub">No scores yet. Be the first.</p>`) : ""}
+      <p class="lbnote">${note}</p>
+      <div class="row"><button class="btn line" type="button" id="lbClose">Close</button><button class="btn" type="button" id="lbRef">Refresh</button></div></div></div>`;
+    const close = () => $("#sheetRoot").innerHTML = "";
+    $("#lbClose").onclick = close; $("#scrim").onclick = e => { if(e.target.id==="scrim") close(); };
+    $("#lbRef").onclick = load;
+  };
+  const when = t => new Date(t).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+  async function load(){
+    const c = lbCache();
+    draw(c, c ? "Updating…" : "Loading…");
+    try{
+      await flushScores();
+      const u = CONFIG.leaderboardUrl + "?mode=" + lbMode() + "&top=" + (Number(CONFIG.leaderboardSize)||10) + "&me=" + encodeURIComponent(S.id || "");
+      const d = await fetch(u).then(r => r.json());
+      if(!d || !d.ok) throw 0;
+      d.at = Date.now(); localStorage.setItem(LB_CACHE, JSON.stringify(d));
+      draw(d, "Updated " + when(d.at) + " · " + d.players + " hiker" + (d.players===1 ? "" : "s")); lbButton();
+    }catch(e){ draw(c, c ? "No signal. Showing the board from " + when(c.at) + "." : "No signal. Try again when you have reception."); }
+  }
+  load();
+}
+
 /* ---------- boot ---------- */
 $("#backBtn").onclick = ()=>{ renderGame(); show("game") };
 $("#ticketBtn").onclick = showTicket;
+$("#lbBtn").onclick = openBoard;
 document.title = CONFIG.eventName + " · Trail Bingo";
 initSetup();
 /* ---------- offline + add to home screen ---------- */
@@ -271,7 +354,7 @@ $("#installLink").onclick = async () => {
   setTimeout(hide, reduced ? 1200 : 3200);
   sp.addEventListener("click", hide);
 })();
-if(S){ renderGame(); show("game") } else show("setup");
+if(S){ renderGame(); show("game"); pushScore(); } else show("setup");
 
 // fetch the latest admin settings (falls back to the saved copy when offline)
 fetch("config.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(r => {
@@ -280,6 +363,6 @@ fetch("config.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.j
   localStorage.setItem(RKEY, JSON.stringify(r)); applyRemote(r);
   if(CONFIG.showSplash === false){ const sp = $("#splash"); if(sp) sp.remove(); }
   if(JSON.stringify(REMOTE_KEYS.map(k => CONFIG[k])) === before) return;
-  refreshRules();
+  refreshRules(); lbButton(); pushScore();
   if(S && !$("#game").classList.contains("hidden")) renderGame();
 }).catch(()=>{});

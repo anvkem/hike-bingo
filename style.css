@@ -144,3 +144,25 @@ input[type=text]:focus,input[type=password]:focus,select:focus{border-color:var(
 .sq.exco.done{background:var(--sun);box-shadow:inset 0 0 0 2px var(--forest)}
 .sq.exco.win{box-shadow:inset 0 0 0 3px var(--forest)}
 .xmini{font-size:10px;font-weight:700;background:var(--sun);color:var(--ink);padding:1px 5px;border-radius:99px;margin-left:4px;letter-spacing:.06em}
+
+/* leaderboard */
+.lbbtn{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:12px;padding:12px 16px;border:1.5px solid var(--line);border-radius:14px;background:#fffdf8;font-weight:700;color:var(--forest)}
+.lbbtn #lbMine{font-weight:500;font-size:14px;color:var(--muted)}
+.lbbtn:hover{background:var(--paper-2)}
+.lb{list-style:none;margin-top:14px;display:grid;gap:6px}
+.lb li{display:flex;align-items:center;gap:12px;background:#fffdf8;border:1px solid var(--line);border-radius:12px;padding:9px 12px}
+.lb li b{flex:none;width:26px;height:26px;border-radius:50%;background:var(--paper-2);color:var(--forest);display:grid;place-items:center;font-size:13px}
+.lb li:nth-child(1) b{background:var(--sun);color:var(--ink)}
+.lb .nm{flex:1;min-width:0;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb .nm small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+.lb .sc{font-family:var(--display);font-weight:800;font-size:19px;color:var(--forest)}
+.lb .sc small{font-size:12px;color:var(--muted);font-weight:700}
+.lb .sc i{font-style:normal;font-size:13px;letter-spacing:.06em;background:var(--forest);color:var(--sun);padding:3px 8px;border-radius:99px}
+.lb li.me{border-color:var(--forest);box-shadow:inset 0 0 0 1px var(--forest)}
+.lb li.gap{margin-top:8px}
+.cup{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-top:14px}
+.cup div{background:var(--forest);color:var(--paper);border-radius:12px;padding:8px 10px}
+.cup span{display:block;font-size:12px;color:#d8e1d6}
+.cup b{font-family:var(--display);font-weight:800;font-size:22px;color:var(--sun)}
+.cupnote,.lbnote{font-size:12px;color:var(--muted);margin-top:6px}
+.lbnote{text-align:center;margin-top:12px}

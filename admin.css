@@ -42,3 +42,8 @@ details ol{margin:10px 0 0 18px;display:grid;gap:6px}
 .set.wide{flex-wrap:wrap}
 .set.wide .seg{margin-left:auto}
 @media(min-width:480px){.set.wide{flex-wrap:nowrap}}
+
+.set.stack{flex-direction:column;align-items:stretch;gap:10px}
+.set input.long{width:100%;text-align:left;font-weight:500;font-size:14px}
+.lbhelp{margin-top:22px;background:#fffdf8;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.lbhelp a{color:var(--forest-2);font-weight:700}

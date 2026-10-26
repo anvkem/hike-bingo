@@ -20,6 +20,12 @@ const SETTINGS = [
   { key: "excoCode", type: "text", title: "Exco code", desc: "Exco type this to sign.", def: "7429", when: "excoEnabled" },
   { key: "excoSignsPerExco", type: "stepper", title: "Exco tiles per exco", desc: "How many exco tiles one exco member can sign on a card.", min: 1, max: 6, def: 1, when: "excoEnabled" },
   { key: "excoAnyCollege", type: "toggle", title: "Exco from any college", desc: "Exco can sign even if they're from the player's college.", def: true, when: "excoEnabled" },
+  { section: "Leaderboard" },
+  { key: "leaderboardOn", type: "toggle", title: "Leaderboard", desc: "Players send their score and can see who's ahead. Off = nothing is sent.", def: false },
+  { key: "leaderboardUrl", type: "text", title: "Google Sheet link", desc: "Apps Script web app URL, ends in /exec. See setup below.", def: "", when: "leaderboardOn", long: true, placeholder: "https://script.google.com/macros/s/…/exec" },
+  { key: "leaderboardMode", type: "choice", title: "Board", desc: "Test and Live are separate boards. Switch to Live on hike day.", options: [["test","Test"],["live","Live"]], def: "test", when: "leaderboardOn" },
+  { key: "leaderboardSize", type: "stepper", title: "Names shown", desc: "How many hikers players see on the board.", min: 3, max: 30, step: 1, def: 10, when: "leaderboardOn" },
+  { key: "leaderboardColleges", type: "toggle", title: "College cup", desc: "Show total squares signed per college.", def: true, when: "leaderboardOn" },
 ];
 /* ======================================================================================= */
 
@@ -144,8 +150,8 @@ function render(){
     if(s.type === "toggle") ctl = `<label class="switch" aria-label="${esc(s.title)}"><input type="checkbox" data-k="${s.key}" ${v ? "checked" : ""}><span></span></label>`;
     if(s.type === "stepper") ctl = `<div class="stepper"><button type="button" data-k="${s.key}" data-d="-1" aria-label="Less" ${v <= s.min ? "disabled" : ""}>−</button><output>${esc(v)}</output><button type="button" data-k="${s.key}" data-d="1" aria-label="More" ${v >= s.max ? "disabled" : ""}>+</button></div>`;
     if(s.type === "choice") ctl = `<div class="seg">${s.options.map(([val, lab]) => `<button type="button" data-k="${s.key}" data-v="${esc(val)}" class="${v === val ? "on" : ""}">${esc(lab)}</button>`).join("")}</div>`;
-    if(s.type === "text") ctl = `<input type="text" data-k="${s.key}" value="${esc(v)}" maxlength="12" autocomplete="off" aria-label="${esc(s.title)}">`;
-    html += `<div class="set ${off ? "off" : ""} ${s.type === "choice" ? "wide" : ""}"><div><h3>${esc(s.title)}</h3><p>${esc(s.desc)}</p></div>${ctl}</div>`;
+    if(s.type === "text") ctl = `<input type="text" data-k="${s.key}" value="${esc(v)}" maxlength="${s.long ? 300 : 12}" autocomplete="off" spellcheck="false" placeholder="${esc(s.placeholder || "")}" aria-label="${esc(s.title)}" class="${s.long ? "long" : ""}">`;
+    html += `<div class="set ${off ? "off" : ""} ${s.type === "choice" ? "wide" : ""} ${s.long ? "stack" : ""}"><div><h3>${esc(s.title)}</h3><p>${esc(s.desc)}</p></div>${ctl}</div>`;
   });
   if(open) html += "</div>";
   $("#panels").innerHTML = html;
@@ -168,6 +174,12 @@ const output = () => { const o = { ...values._extra }; SETTINGS.forEach(s => { i
 
 $("#saveBtn").onclick = async () => {
   if(values.excoEnabled && !values.excoCode) return status("Add an exco code first.", "bad");
+  if(values.leaderboardOn){
+    if(!/^https:\/\/script\.google(usercontent)?\.com\/.+\/exec$/.test(values.leaderboardUrl || "")) return status("Paste the Google Sheet link first. It starts with https://script.google.com/ and ends in /exec.", "bad");
+    $("#saveBtn").textContent = "Checking the Sheet…"; $("#saveBtn").disabled = true;
+    try{ const t = await fetch(values.leaderboardUrl + "?mode=test&top=1").then(r => r.json()); if(!t || !t.ok) throw 0; }
+    catch(e){ dirty(); return status("Couldn't reach the Sheet. Check the link, and that the deployment's access is set to “Anyone”.", "bad"); }
+  }
   $("#saveBtn").textContent = "Saving…"; $("#saveBtn").disabled = true; status("");
   const body = { message: "Admin: update settings", content: b64e(JSON.stringify(output(), null, 2) + "\n") };
   if(sha) body.sha = sha;

@@ -64,6 +64,16 @@
     <div id="panels"></div>
     <button class="btn" type="button" id="saveBtn">Saved</button>
     <div class="status" id="status" role="status"></div>
+    <details class="lbhelp">
+      <summary>How do I set up the leaderboard?</summary>
+      <ol>
+        <li>Open <a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a> and name it e.g. “MC Rangers Bingo”.</li>
+        <li><strong>Extensions → Apps Script</strong>. Delete what's there and paste everything from <a href="https://github.com/mcrangers/hike-bingo/blob/main/apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a>. Save.</li>
+        <li><strong>Deploy → New deployment</strong> → type <strong>Web app</strong>. Execute as <strong>Me</strong>, Who has access <strong>Anyone</strong>. Deploy and allow access.</li>
+        <li>Copy the <strong>Web app URL</strong> (ends in /exec), paste it above, turn the leaderboard on, Board: Test, then Save.</li>
+        <li>Hike day: switch Board to <strong>Live</strong>. Test scores stay on the Test board, so you start clean.</li>
+      </ol>
+    </details>
   </section>
 </div>
 <script src="admin.js"></script>
