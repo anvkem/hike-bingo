@@ -195,6 +195,30 @@ $("#backBtn").onclick = ()=>{ renderGame(); show("game") };
 $("#ticketBtn").onclick = showTicket;
 document.title = CONFIG.eventName + " · Trail Bingo";
 initSetup();
+/* ---------- offline + add to home screen ---------- */
+if("serviceWorker" in navigator && location.protocol.startsWith("http")){
+  addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(()=>{}));
+}
+let installEvt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+if(standalone) $("#foot").classList.add("hidden");
+addEventListener("appinstalled", () => $("#foot").classList.add("hidden"));
+$("#installLink").onclick = async () => {
+  if(installEvt){ installEvt.prompt(); await installEvt.userChoice.catch(()=>{}); installEvt = null; return; }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+  const steps = ios
+    ? ["Tap the <strong>Share</strong> button in Safari (square with an arrow).","Scroll down and tap <strong>Add to Home Screen</strong>.","Tap <strong>Add</strong>, then open Trail Bingo from your home screen."]
+    : ["Open your browser menu (<strong>⋮</strong> in Chrome).","Tap <strong>Add to Home screen</strong> or <strong>Install app</strong>.","Open Trail Bingo from your home screen."];
+  $("#sheetRoot").innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="iT">
+    <div class="tag">Optional</div><h2 id="iT">Add to Home Screen</h2>
+    <p class="sub">Opens full-screen and works with no signal on the trail.</p>
+    <div class="steps">${steps.map((s,i)=>`<div><b>${i+1}</b><span>${s}</span></div>`).join("")}</div>
+    ${ios ? `<p class="note">On iPhone, the home screen app keeps its own card. Add it <strong>before</strong> you start playing, or your Safari card won't carry over.</p>` : ""}
+    <button class="btn line" type="button" id="iClose">Got it</button></div></div>`;
+  const close = () => $("#sheetRoot").innerHTML = "";
+  $("#iClose").onclick = close; $("#scrim").onclick = e => { if(e.target.id==="scrim") close(); };
+};
 (function splash(){
   const sp = $("#splash"); if(!sp) return;
   if(CONFIG.showSplash === false){ sp.remove(); return; }

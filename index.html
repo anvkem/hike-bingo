@@ -6,6 +6,12 @@
 <title>MC Rangers - Trail Bingo — Meet Someone New</title>
 <meta name="description" content="Hike icebreaker bingo: fill your card by meeting people from other colleges.">
 <meta name="theme-color" content="#1f3a2e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Trail Bingo">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f3a2e'/><path d='M5 24 13 10l5 8 3-4 6 10z' fill='%23f2a541'/></svg>">
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
@@ -90,8 +96,11 @@
     </div>
     <button class="btn" id="backBtn" type="button">Back to my card</button>
   </section>
-</div>
 
+  <footer class="foot" id="foot">
+    <button type="button" id="installLink">Add to Home Screen</button>
+  </footer>
+</div>
 <div id="sheetRoot"></div>
 <canvas class="confetti" id="confetti"></canvas>
 

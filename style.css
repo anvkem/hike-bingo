@@ -123,3 +123,13 @@ input[type=text]:focus,select:focus{border-color:var(--forest-2);box-shadow:0 0 
 .sp-skip{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom));left:0;right:0;font-size:12px;color:#e6ece4;opacity:.7;z-index:1;animation:spIn .5s ease both 1.8s}
 @keyframes spIn{from{opacity:0;transform:translateY(14px)}}
 @keyframes spRise{from{transform:translateY(40%)}}
+
+/* footer: quiet add-to-home-screen link */
+.foot{margin-top:40px;text-align:center}
+.foot button{font-size:12px;color:var(--muted);text-decoration:underline;text-underline-offset:3px;padding:8px;opacity:.75}
+.foot button:hover{opacity:1}
+.steps{margin-top:14px;display:grid;gap:10px;font-size:15px}
+.steps div{display:flex;gap:10px;align-items:flex-start}
+.steps b{flex:none;width:24px;height:24px;border-radius:50%;background:var(--paper-2);color:var(--forest);display:grid;place-items:center;font-size:12px}
+.note{margin-top:14px;font-size:13px;color:var(--muted);background:var(--paper-2);border-radius:12px;padding:10px 12px}
+.sq.done .who small{overflow-wrap:normal;hyphens:none;font-size:.7em;max-width:100%}
