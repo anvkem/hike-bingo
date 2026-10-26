@@ -1,6 +1,6 @@
 {
   "winCondition": "blackout",
-  "maxSignsPerPerson": 3,
+  "maxSignsPerPerson": 2,
   "showSplash": true,
   "excoEnabled": true,
   "excoTiles": 4,
