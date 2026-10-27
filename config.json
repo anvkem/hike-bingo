@@ -2,7 +2,7 @@
   "winCondition": "blackout",
   "maxSignsPerPerson": 2,
   "showSplash": true,
-  "excoEnabled": true,
+  "excoEnabled": false,
   "excoTiles": 4,
   "excoCode": "7429",
   "excoSignsPerExco": 1,
