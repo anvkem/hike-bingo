@@ -12,7 +12,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Trail Bingo">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231f3a2e'/><path d='M5 24 13 10l5 8 3-4 6 10z' fill='%23f2a541'/></svg>">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
 <link rel="preconnect" href="https://api.fontshare.com">
 <link href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,700&f[]=satoshi@400,500,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
@@ -20,7 +20,7 @@
 <body>
 <div id="splash" class="splash" role="status" aria-label="MC Rangers presents Trail Bingo, with CCIA and SHHOISA">
   <div class="sp-inner">
-    <div class="sp-host">MC Rangers</div>
+    <img class="sp-logo" src="icons/logo.png" alt="MC Rangers" width="640" height="317">
     <div class="sp-presents">present</div>
     <div class="sp-title">Trail<br><em>Bingo</em></div>
     <div class="sp-with"><span>with</span><b>CCIA</b><i>&amp;</i><b>SHHOISA</b></div>
@@ -31,8 +31,8 @@
 <div class="wrap">
   <div class="top">
     <div class="brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1f3a2e"/><path d="M4 25 12.5 10l5 8.5 3-4.5L28 25z" fill="#f2a541"/><circle cx="23" cy="9" r="2.6" fill="#f6f1e7"/></svg>
-      MC Rangers - Trail Bingo
+      <span class="mark"><img src="icons/logo-sm.png" alt="MC Rangers" width="240" height="119"></span>
+      Trail Bingo
     </div>
     <div id="topRight"></div>
   </div>
@@ -40,6 +40,7 @@
   <!-- SETUP -->
   <section id="setup" class="hidden">
     <div class="hero">
+      <img class="hero-logo" src="icons/logo-sm.png" alt="MC Rangers" width="240" height="119">
       <h1>Meet the people<br>on the <em>trail.</em> </h1>
       <p id="heroSub">Fill your bingo card by finding hikers from colleges that aren't yours.</p>
       <svg class="ridge" viewBox="0 0 400 90" preserveAspectRatio="none" aria-hidden="true"><path d="M0 90V62l40-20 30 14 50-38 40 30 30-16 45 34 35-22 40 18 40-30 50 34v24z" fill="#2d5141"/><path d="M0 90V74l60-16 40 12 60-22 50 20 50-14 60 18 80-16v34z" fill="#5e7d4f"/></svg>
@@ -81,6 +82,7 @@
   <section id="reward" class="hidden">
     <div class="ticket">
       <div class="head">
+        <img class="tk-logo" src="icons/logo-sm.png" alt="MC Rangers" width="240" height="119">
         <div class="tag" id="tTag">Reward ticket</div>
         <h2 id="tTitle">BINGO</h2>
       </div>
@@ -99,6 +101,7 @@
   </section>
 
   <footer class="foot" id="foot">
+    <img class="foot-logo" src="icons/logo-sm.png" alt="MC Rangers" width="240" height="119">
     <button type="button" id="installLink">Add to Home Screen</button>
   </footer>
 </div>
