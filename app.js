@@ -1,3 +1,7 @@
+/* Trail Bingo · MC Rangers
+ * Game logic. Cards are stored per phone in localStorage; live settings come from config.json.
+ * https://github.com/mcrangers/hike-bingo */
+
 /* ===== Organiser settings: edit these ===== */
 const CONFIG = {
   eventName: "Hike Bingo",
@@ -16,8 +20,9 @@ const CONFIG = {
   excoEnabled: true,
   // How many exco-only tiles each card gets (0 = none)
   excoTiles: 4,
-  // Secret code exco type in to sign an exco tile. Change it and tell exco only.
-  excoCode: "7429",
+  // Exco sign exco tiles with a secret code. Only its PBKDF2 hash is published
+  // (see hashCode below); set or change the code from admin.html.
+  excoCodeHash: "",
   // true = exco can sign even if they're from the player's own college
   excoAnyCollege: true,
   // How many exco tiles the same exco member can sign on one card
@@ -42,11 +47,19 @@ const CONFIG = {
 /* ---------- admin settings (config.json) ---------- */
 const RKEY = "trailbingo:remote";
 // Every setting the admin page can change. Add new admin toggles here.
-const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCode","excoAnyCollege","excoSignsPerExco"];
+const REMOTE_KEYS = ["showSplash","winCondition","maxSignsPerPerson","excoEnabled","excoTiles","excoCodeHash","excoAnyCollege","excoSignsPerExco"];
 function applyRemote(r){ if(r && typeof r==="object") REMOTE_KEYS.forEach(k => { if(k in r) CONFIG[k] = r[k]; }); }
 try{ applyRemote(JSON.parse(localStorage.getItem(RKEY))); }catch(e){}
 const excoOn = () => CONFIG.excoEnabled !== false && Number(CONFIG.excoTiles) > 0;
 const xo = c => !!(c && c.exco && CONFIG.excoEnabled !== false);
+
+// Must match hashCode() in admin.js
+async function hashCode(code){
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(String(code).trim().toLowerCase()), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode("mcrangers/hike-bingo/exco"), iterations: 100000 }, key, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
 
 const KEY = "trailbingo:v1";
 const $ = s => document.querySelector(s);
@@ -177,7 +190,7 @@ function openSheet(i){
   if($("#wCancel")) $("#wCancel").onclick = close;
   if($("#wClear")) $("#wClear").onclick = ()=>{ S.cells[i]={...c,who:null,whoCollege:null,note:""}; if(!hasWon()) S.wonAt=null; save(); close(); renderGame(); };
   setTimeout(()=>{const w=$("#wName"); if(w) w.focus()}, 50);
-  $("#sheetForm").onsubmit = e => {
+  $("#sheetForm").onsubmit = async e => {
     e.preventDefault();
     const who = $("#wName").value.trim();
     let col = sel.value; if(col==="__other") col = $("#wCollegeOther").value.trim();
@@ -185,7 +198,9 @@ function openSheet(i){
     if(!who) return err("Add their name.");
     if(!col) return err("Pick their college.");
     if(xo(c)){
-      if(($("#wCode").value||"").trim() !== String(CONFIG.excoCode)) return err("That exco code isn't right. Only exco know it.");
+      const typed = ($("#wCode").value||"").trim();
+      if(!typed) return err("Ask an exco member to type the exco code.");
+      if(!CONFIG.excoCodeHash || await hashCode(typed) !== CONFIG.excoCodeHash) return err("That exco code isn't right. Only exco know it.");
       const exMax = Math.max(1, Number(CONFIG.excoSignsPerExco) || 1);
       const exUsed = S.cells.filter((x,j)=>j!==i && xo(x) && x.who && norm(x.who)===norm(who)).length;
       if(exUsed >= exMax) return err(exMax===1 ? `${who} already signed an exco tile. Find a different exco member.` : `${who} has already signed ${exMax} exco tiles, the limit. Find a different exco member.`);
@@ -236,7 +251,7 @@ function confetti(){
 /* ---------- boot ---------- */
 $("#backBtn").onclick = ()=>{ renderGame(); show("game") };
 $("#ticketBtn").onclick = showTicket;
-document.title = CONFIG.eventName + " · Trail Bingo";
+document.title = "Trail Bingo · MC Rangers";
 initSetup();
 /* ---------- offline + add to home screen ---------- */
 if("serviceWorker" in navigator && location.protocol.startsWith("http")){

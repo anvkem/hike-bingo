@@ -6,7 +6,7 @@ const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
 const TKEY = "trailbingo:adminKey";
 
 /* ===== Admin settings: add new toggles here (and the key to REMOTE_KEYS in app.js) =====
- * type: toggle | stepper | choice | text.  `when` hides/greys it unless another setting is on. */
+ * type: toggle | stepper | choice | text | secret (hashed before saving).  `when` hides/greys it unless another setting is on. */
 const SETTINGS = [
   { section: "Game" },
   { key: "winCondition", type: "choice", title: "Win rule", desc: "What players need for a reward.",
@@ -17,7 +17,7 @@ const SETTINGS = [
   { section: "Exco tiles" },
   { key: "excoEnabled", type: "toggle", title: "Exco tiles", desc: "Gold tiles only exco can sign. Off also unlocks them on cards in play.", def: true },
   { key: "excoTiles", type: "stepper", title: "Tiles per card", desc: "Applies to new cards.", min: 1, max: 6, def: 4, when: "excoEnabled" },
-  { key: "excoCode", type: "text", title: "Exco code", desc: "Exco type this to sign.", def: "7429", when: "excoEnabled" },
+  { key: "excoCodeHash", type: "secret", title: "Exco code", desc: "Exco type this to sign. Saved hashed, never public. 6+ characters is best.", def: "", when: "excoEnabled" },
   { key: "excoSignsPerExco", type: "stepper", title: "Exco tiles per exco", desc: "How many exco tiles one exco member can sign on a card.", min: 1, max: 6, def: 1, when: "excoEnabled" },
   { key: "excoAnyCollege", type: "toggle", title: "Exco from any college", desc: "Exco can sign even if they're from the player's college.", def: true, when: "excoEnabled" },
 ];
@@ -123,6 +123,14 @@ $("#setupForm").onsubmit = async e => {
   $("#setupBtn").textContent = "Save and log in";
 };
 
+// Must match hashCode() in app.js
+async function hashCode(code){
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(String(code).trim().toLowerCase()), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode("mcrangers/hike-bingo/exco"), iterations: 100000 }, key, 256);
+  return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 /* ---------- settings ---------- */
 async function loadConfig(){
   const r = await gh("/contents/config.json?t=" + Date.now());
@@ -130,9 +138,12 @@ async function loadConfig(){
   let cfg = {};
   if(r.ok){ const j = await r.json(); sha = j.sha; cfg = JSON.parse(b64d(j.content)); } else sha = null;
   saved = {}; SETTINGS.forEach(s => { if(s.key) saved[s.key] = (s.key in cfg) ? cfg[s.key] : s.def; });
-  saved._extra = Object.fromEntries(Object.entries(cfg).filter(([k]) => !SETTINGS.some(s => s.key === k)));
+  // excoCode = the old plain-text setting; it is replaced by excoCodeHash on the next save
+  saved._extra = Object.fromEntries(Object.entries(cfg).filter(([k]) => k !== "excoCode" && !SETTINGS.some(s => s.key === k)));
   values = JSON.parse(JSON.stringify(saved));
+  if(cfg.excoCode && !cfg.excoCodeHash){ values.excoCodeHash = await hashCode(cfg.excoCode); saved._legacy = true; }
   render();
+  if(saved._legacy) status("The exco code is still in plain text. Press Save to hide it.", "bad");
 }
 
 function render(){
@@ -145,6 +156,7 @@ function render(){
     if(s.type === "stepper") ctl = `<div class="stepper"><button type="button" data-k="${s.key}" data-d="-1" aria-label="Less" ${v <= s.min ? "disabled" : ""}>−</button><output>${esc(v)}</output><button type="button" data-k="${s.key}" data-d="1" aria-label="More" ${v >= s.max ? "disabled" : ""}>+</button></div>`;
     if(s.type === "choice") ctl = `<div class="seg">${s.options.map(([val, lab]) => `<button type="button" data-k="${s.key}" data-v="${esc(val)}" class="${v === val ? "on" : ""}">${esc(lab)}</button>`).join("")}</div>`;
     if(s.type === "text") ctl = `<input type="text" data-k="${s.key}" value="${esc(v)}" maxlength="12" autocomplete="off" aria-label="${esc(s.title)}">`;
+    if(s.type === "secret") ctl = `<input type="password" data-k="${s.key}" value="" maxlength="32" autocomplete="new-password" spellcheck="false" placeholder="${v ? "Set · type to change" : "Not set"}" aria-label="${esc(s.title)}">`;
     html += `<div class="set ${off ? "off" : ""} ${s.type === "choice" ? "wide" : ""}"><div><h3>${esc(s.title)}</h3><p>${esc(s.desc)}</p></div>${ctl}</div>`;
   });
   if(open) html += "</div>";
@@ -156,10 +168,15 @@ function render(){
   });
   $("#panels").querySelectorAll(".seg button").forEach(el => el.onclick = () => { values[el.dataset.k] = el.dataset.v; render(); });
   $("#panels").querySelectorAll("input[type=text]").forEach(el => el.oninput = () => { values[el.dataset.k] = el.value.trim(); dirty(); });
+  $("#panels").querySelectorAll("input[type=password]").forEach(el => el.oninput = async () => {
+    const v = el.value.trim(), k = el.dataset.k;
+    values[k] = v ? await hashCode(v) : saved[k];
+    if(el.value.trim() === v) dirty();
+  });
   dirty();
 }
 function dirty(){
-  const d = JSON.stringify(values) !== JSON.stringify(saved);
+  const d = saved._legacy || JSON.stringify(values) !== JSON.stringify(saved);
   $("#saveBtn").innerHTML = d ? '<span class="dirty"></span>Save changes' : "Saved";
   $("#saveBtn").disabled = !d;
   return d;
@@ -167,14 +184,16 @@ function dirty(){
 const output = () => { const o = { ...values._extra }; SETTINGS.forEach(s => { if(s.key) o[s.key] = values[s.key]; }); return o; };
 
 $("#saveBtn").onclick = async () => {
-  if(values.excoEnabled && !values.excoCode) return status("Add an exco code first.", "bad");
+  if(values.excoEnabled && !values.excoCodeHash) return status("Add an exco code first.", "bad");
+  const typed = $("#panels input[type=password]");
+  if(typed && typed.value.trim() && typed.value.trim().length < 4) return status("Make the exco code at least 4 characters (6+ is better).", "bad");
   $("#saveBtn").textContent = "Saving…"; $("#saveBtn").disabled = true; status("");
   const body = { message: "Admin: update settings", content: b64e(JSON.stringify(output(), null, 2) + "\n") };
   if(sha) body.sha = sha;
   const r = await gh("/contents/config.json", { method: "PUT", body: JSON.stringify(body) });
   if(r.status === 409 || r.status === 422){ await loadConfig(); return status("Settings were changed somewhere else. Reloaded them, check and save again.", "bad"); }
   if(!r.ok){ dirty(); return status(await explain(r), "bad"); }
-  sha = (await r.json()).content.sha; saved = JSON.parse(JSON.stringify(values)); dirty();
+  sha = (await r.json()).content.sha; saved = JSON.parse(JSON.stringify(values)); render();
   status("Saved. Going live in about a minute…", "ok");
   waitLive(JSON.stringify(output()));
 };

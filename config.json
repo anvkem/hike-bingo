@@ -4,7 +4,7 @@
   "showSplash": true,
   "excoEnabled": true,
   "excoTiles": 4,
-  "excoCode": "7429",
   "excoSignsPerExco": 1,
-  "excoAnyCollege": true
+  "excoAnyCollege": true,
+  "excoCodeHash": "3eb071c580bce5026f2fbebd3091a2a72acaed27f22b91d9a0002aa0de93fdc3"
 }
